@@ -312,7 +312,7 @@ _apply_dropin() {
   if [[ "$DRY_RUN" == "1" ]]; then
     log_step "Step 4/7 — (dry-run) validate + verify"
     log_info "[dry-run] would write the drop-in, then run: $(sshd_bin) -t"
-    log_info "[dry-run] would 'systemctl reload ssh', then confirm each value via 'sshd -t'... err 'sshd -T'."
+    log_info "[dry-run] would 'systemctl reload ssh', then verify each value took effect via 'sshd -T'."
     return 0
   fi
 
