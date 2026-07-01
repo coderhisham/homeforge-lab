@@ -33,8 +33,12 @@ set -euo pipefail
 source "$FORGE_LIB/log.sh"
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
+SSHD_CONFIG_D="/etc/ssh/sshd_config.d"
+FORGE_DROPIN="$SSHD_CONFIG_D/00-forge-hardening.conf"   # 00- sorts first => wins
 PERMIT_ROOT_LOGIN="${SSH_PERMIT_ROOT_LOGIN:-no}"
-BACKUP_PATH=""   # set in step 2; referenced by the rollback message.
+BACKUP_PATH=""       # set in step 2; referenced by the rollback message.
+ROLLBACK_CMD=""      # exact rollback command, built once the target is known.
+HARDEN_TARGET=""     # "dropin" (modern Ubuntu) or "mainfile" (no Include).
 
 # --- Local flag parse (module can be invoked standalone) ---------------------
 while [[ $# -gt 0 ]]; do
@@ -130,32 +134,129 @@ step1_require_key_auth() {
   fi
 }
 
-# --- STEP 2: unconditional timestamped backup --------------------------------
+# --- Effective-config helpers (ground truth, accounts for Include drop-ins) --
+# Modern Ubuntu (22.04/24.04) ships sshd_config with `Include
+# /etc/ssh/sshd_config.d/*.conf` at the TOP. sshd is FIRST-VALUE-WINS, so a
+# drop-in read via that Include overrides directives placed later in the main
+# file — and cloud images often drop `PasswordAuthentication yes` there. Editing
+# only the main file can therefore report success while password auth stays on.
+#
+# We defend against that by (a) writing our hardening to a drop-in whose name
+# sorts first (00-forge-hardening.conf) so it wins within the dir, and (b)
+# trusting `sshd -T` (fully-resolved effective config) as the source of truth,
+# both to decide "already hardened?" and to VERIFY the change actually took.
+
+# sshd_bin: resolve the sshd binary path once.
+sshd_bin() { command -v sshd 2>/dev/null || echo /usr/sbin/sshd; }
+
+# main_has_include: 0 if the main config actively Includes the drop-in dir.
+# The main sshd_config is world-readable (0644) on Ubuntu, so we read it
+# directly and only fall back to sudo when it genuinely isn't readable AND we
+# are not in dry-run (never prompt for a password during a preview).
+main_has_include() {
+  local content=""
+  if [[ -r "$SSHD_CONFIG" ]]; then
+    content="$(cat "$SSHD_CONFIG" 2>/dev/null)"
+  elif [[ "$(id -u)" -eq 0 ]]; then
+    content="$(cat "$SSHD_CONFIG" 2>/dev/null)"
+  elif [[ "$DRY_RUN" != "1" ]]; then
+    content="$(sudo cat "$SSHD_CONFIG" 2>/dev/null)"
+  fi
+  grep -qiE '^[[:space:]]*Include[[:space:]]+.*sshd_config\.d' <<<"$content"
+}
+
+# detect_target: set HARDEN_TARGET to "dropin" (Include present, preferred) or
+# "mainfile" (legacy, no Include — we must edit the main file directly).
+detect_target() {
+  if [[ -d "$SSHD_CONFIG_D" ]] && main_has_include; then
+    HARDEN_TARGET="dropin"
+  else
+    HARDEN_TARGET="mainfile"
+  fi
+}
+
+# sshd_effective_value <directive>: echo the fully-resolved effective value
+# (lowercased key space value) via `sshd -T`, or empty if it can't be read.
+# `sshd -T` requires root (it opens host keys); we try sudo, and in dry-run we
+# tolerate failure rather than forcing a password prompt.
+sshd_effective_value() {
+  local key_lc; key_lc="$(tr '[:upper:]' '[:lower:]' <<<"$1")"
+  local out=""
+  if [[ "$(id -u)" -eq 0 ]]; then
+    out="$("$(sshd_bin)" -T 2>/dev/null | awk -v k="$key_lc" '$1==k{print $2; exit}')"
+  elif [[ "$DRY_RUN" != "1" ]]; then
+    out="$(sudo "$(sshd_bin)" -T 2>/dev/null | awk -v k="$key_lc" '$1==k{print $2; exit}')"
+  fi
+  echo "$out"
+}
+
+# effective_matches_policy: 0 if every hardened directive already has our target
+# value in the EFFECTIVE config. Returns 1 (not matched) if any value can't be
+# read, so we never assume "already hardened" from missing data.
+effective_matches_policy() {
+  local k want got
+  for k in "${HARDENED_KEYS[@]}"; do
+    want="$(tr '[:upper:]' '[:lower:]' <<<"${HARDENED_VALUES[$k]}")"
+    got="$(sshd_effective_value "$k")"
+    [[ -n "$got" ]] || return 1
+    [[ "$got" == "$want" ]] || return 1
+  done
+  return 0
+}
+
+# forge_dropin_contents: the exact drop-in file we write (also shown in dry-run).
+forge_dropin_contents() {
+  local k
+  echo "# Managed by homelab-forge (ssh-hardening). Do not edit by hand."
+  echo "# This drop-in sorts first (00-) so it wins over other *.conf here."
+  echo "# sshd is first-value-wins; these override later drop-ins and the main file."
+  for k in "${HARDENED_KEYS[@]}"; do
+    echo "${k} ${HARDENED_VALUES[$k]}"
+  done
+}
+
+# --- STEP 2: unconditional timestamped backup + target detection -------------
 step2_backup() {
-  log_step "Step 2/7 — Back up $SSHD_CONFIG"
-  local ts; ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo backup)"
-  BACKUP_PATH="${SSHD_CONFIG}.bak.${ts}"
+  log_step "Step 2/7 — Back up SSH config"
 
   if [[ ! -f "$SSHD_CONFIG" ]]; then
     log_die "$SSHD_CONFIG not found — is OpenSSH server installed? (apt install openssh-server)"
   fi
 
+  detect_target
+  local ts; ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo backup)"
+  BACKUP_PATH="${SSHD_CONFIG}.bak.${ts}"
+
+  # Always back up the main file (cheap and useful regardless of target).
   run_cmd_sudo cp -a "$SSHD_CONFIG" "$BACKUP_PATH"
+
+  if [[ "$HARDEN_TARGET" == "dropin" ]]; then
+    log_info "Detected 'Include $SSHD_CONFIG_D/*.conf' — hardening via a winning drop-in:"
+    log_info "    $FORGE_DROPIN"
+    # If a forge drop-in somehow already exists, back it up too.
+    if [[ "$DRY_RUN" != "1" ]] && { [[ "$(id -u)" -eq 0 ]] && [[ -f "$FORGE_DROPIN" ]] || sudo test -f "$FORGE_DROPIN" 2>/dev/null; }; then
+      run_cmd_sudo cp -a "$FORGE_DROPIN" "${FORGE_DROPIN}.bak.${ts}"
+    fi
+    ROLLBACK_CMD="sudo rm -f $FORGE_DROPIN && sudo systemctl reload ssh"
+  else
+    log_warn "No drop-in Include found; will edit the main file directly (legacy layout)."
+    ROLLBACK_CMD="sudo cp $BACKUP_PATH $SSHD_CONFIG && sudo systemctl reload ssh"
+  fi
+
   if [[ "$DRY_RUN" != "1" ]]; then
     [[ -f "$BACKUP_PATH" ]] || log_die "Backup failed; refusing to continue."
-    log_ok "Backed up to $BACKUP_PATH"
+    log_ok "Backed up $SSHD_CONFIG to $BACKUP_PATH"
   else
     log_info "[dry-run] backup would be at $BACKUP_PATH"
   fi
 }
 
-# --- STEP 3+4: build candidate config idempotently, validate, then install ---
-# Produces the new config on stdout from the current one, changing only the
-# directives whose effective value differs. Preserves everything else verbatim.
+# --- Legacy main-file renderer (only used when there is no Include) -----------
+# Produces a hardened main file on stdout, changing only directives whose value
+# differs, collapsing duplicates, appending any that are absent.
 render_candidate() {
   local src="$1"
-  awk -v keys="${HARDENED_KEYS[*]}" \
-      -v pubkey="${HARDENED_VALUES[PubkeyAuthentication]}" \
+  awk -v pubkey="${HARDENED_VALUES[PubkeyAuthentication]}" \
       -v passwd="${HARDENED_VALUES[PasswordAuthentication]}" \
       -v root="${HARDENED_VALUES[PermitRootLogin]}" \
       -v kbd="${HARDENED_VALUES[KbdInteractiveAuthentication]}" '
@@ -168,88 +269,143 @@ render_candidate() {
     }
     {
       line=$0
-      # Match an active (uncommented) directive line: optional leading ws, key, ws, value.
       if (match(line, /^[ \t]*[A-Za-z]+[ \t]/)) {
-        # Extract the first token as the directive name.
-        tmp=line
-        sub(/^[ \t]+/, "", tmp)
-        split(tmp, parts, /[ \t]+/)
-        key=parts[1]
+        tmp=line; sub(/^[ \t]+/, "", tmp); split(tmp, parts, /[ \t]+/); key=parts[1]
         if (key in want) {
-          if (seen[key]==0) {
-            print key " " want[key]
-            seen[key]=1
-          }
-          # Drop any duplicate active occurrences (idempotent collapse).
+          if (seen[key]==0) { print key " " want[key]; seen[key]=1 }
           next
         }
       }
       print line
     }
-    END {
-      # Append any directive that was never present.
-      for (k in want) if (seen[k]==0) print k " " want[k]
-    }
+    END { for (k in want) if (seen[k]==0) print k " " want[k] }
   ' "$src"
 }
 
+# --- STEP 3+4: apply (drop-in or main file), validate, verify EFFECTIVE -------
 step3_4_apply_and_validate() {
-  log_step "Step 3/7 — Apply directives idempotently"
+  log_step "Step 3/7 — Apply hardening directives"
+  local k
   for k in "${HARDENED_KEYS[@]}"; do
     log_info "  enforce: ${C_BOLD}${k} ${HARDENED_VALUES[$k]}${C_RESET}"
   done
 
+  # Idempotency check against the EFFECTIVE config (not the main file's text).
+  if [[ "$DRY_RUN" != "1" ]] && effective_matches_policy; then
+    log_ok "Effective SSH config already matches the hardened policy (verified via sshd -T)."
+    return 0
+  fi
+
+  if [[ "$HARDEN_TARGET" == "dropin" ]]; then
+    _apply_dropin
+  else
+    _apply_mainfile
+  fi
+}
+
+# Apply via drop-in: validate a merged candidate, install the drop-in, reload,
+# then VERIFY the effective values actually changed.
+_apply_dropin() {
+  log_info "Writing hardening to $FORGE_DROPIN (shown below):"
+  forge_dropin_contents | sed 's/^/    /' >&2
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_step "Step 4/7 — (dry-run) validate + verify"
+    log_info "[dry-run] would write the drop-in, then run: $(sshd_bin) -t"
+    log_info "[dry-run] would 'systemctl reload ssh', then confirm each value via 'sshd -t'... err 'sshd -T'."
+    return 0
+  fi
+
+  # Stage the drop-in to a temp file and validate the WHOLE config with it in
+  # place by pointing sshd -t at a merged view. Simplest robust approach: write
+  # the drop-in, run `sshd -t` (validates the full tree incl. drop-ins), and if
+  # it fails, remove the drop-in immediately.
+  local tmp; tmp="$(mktemp -t forge-hardening.XXXXXX.conf)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmp'" RETURN
+  forge_dropin_contents >"$tmp"
+
+  run_cmd_sudo install -m 0644 -o root -g root "$tmp" "$FORGE_DROPIN"
+
+  log_step "Step 4/7 — Validate with 'sshd -t', then verify effective config"
+  if ! run_cmd_sudo "$(sshd_bin)" -t; then
+    log_error "sshd -t rejected the config after adding the drop-in. Removing it."
+    run_cmd_sudo rm -f "$FORGE_DROPIN"
+    log_die "Reverted the drop-in. Original config untouched."
+  fi
+  log_ok "Full config passed 'sshd -t'."
+
+  reload_sshd
+
+  # The crucial check: did the EFFECTIVE values actually become what we want?
+  if effective_matches_policy; then
+    log_ok "Verified via sshd -T: all hardened directives are now in effect."
+  else
+    log_error "sshd -T shows the effective config does NOT match policy after applying."
+    log_error "Something with higher precedence is overriding the drop-in. Reverting."
+    _report_effective_mismatch
+    run_cmd_sudo rm -f "$FORGE_DROPIN"
+    reload_sshd
+    log_die "Reverted drop-in; effective config restored. Investigate overriding config."
+  fi
+}
+
+# Apply via main file (legacy, no Include): render, validate candidate, install.
+_apply_mainfile() {
   local candidate; candidate="$(mktemp -t sshd_config.candidate.XXXXXX)"
   # shellcheck disable=SC2064
   trap "rm -f '$candidate'" RETURN
 
-  # Read the live config (via sudo if needed) and render the candidate.
   if [[ "$(id -u)" -eq 0 ]]; then
     render_candidate "$SSHD_CONFIG" >"$candidate"
+  elif [[ "$DRY_RUN" == "1" ]]; then
+    # Avoid sudo in dry-run: read what we can without privilege.
+    if [[ -r "$SSHD_CONFIG" ]]; then render_candidate "$SSHD_CONFIG" >"$candidate"; else : >"$candidate"; fi
   else
     sudo cat "$SSHD_CONFIG" | render_candidate /dev/stdin >"$candidate"
   fi
 
-  # Show the diff so the user sees exactly what changes.
-  log_info "Proposed changes:"
-  if [[ "$(id -u)" -eq 0 ]]; then
+  log_info "Proposed changes to $SSHD_CONFIG:"
+  if [[ -r "$SSHD_CONFIG" ]]; then
     diff -u "$SSHD_CONFIG" "$candidate" >&2 || true
   else
-    sudo diff -u "$SSHD_CONFIG" "$candidate" >&2 || true
-  fi
-
-  # If the candidate is identical, we're already hardened — idempotent no-op.
-  local identical=0
-  if [[ "$(id -u)" -eq 0 ]]; then
-    diff -q "$SSHD_CONFIG" "$candidate" >/dev/null 2>&1 && identical=1
-  else
-    sudo diff -q "$SSHD_CONFIG" "$candidate" >/dev/null 2>&1 && identical=1
-  fi
-  if [[ "$identical" == "1" ]]; then
-    log_ok "sshd_config already matches the hardened policy. Nothing to change."
-    return 0
+    log_info "  (cannot show diff without privilege in dry-run)"
   fi
 
   log_step "Step 4/7 — Validate candidate with 'sshd -t' before applying"
-  local sshd_bin; sshd_bin="$(command -v sshd || echo /usr/sbin/sshd)"
   if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would validate the candidate with: $sshd_bin -t -f <candidate>"
-    log_info "[dry-run] would then install it to $SSHD_CONFIG and 'systemctl reload' ssh."
+    log_info "[dry-run] would validate: $(sshd_bin) -t -f <candidate>, then install + reload."
     return 0
   fi
 
-  # Validate the CANDIDATE file specifically. Abort entirely on failure.
-  if ! run_cmd_sudo "$sshd_bin" -t -f "$candidate"; then
+  if ! run_cmd_sudo "$(sshd_bin)" -t -f "$candidate"; then
     log_die "sshd -t rejected the candidate config. NOT applying. Original untouched."
   fi
   log_ok "Candidate config passed 'sshd -t'."
-
-  # Install the validated candidate over the live file (backup already taken).
   run_cmd_sudo install -m 0644 -o root -g root "$candidate" "$SSHD_CONFIG"
   log_ok "Installed hardened $SSHD_CONFIG."
-
-  # Reload (NOT restart) so existing sessions are not dropped.
   reload_sshd
+
+  if effective_matches_policy; then
+    log_ok "Verified via sshd -T: all hardened directives are now in effect."
+  else
+    log_warn "sshd -T shows the effective config still doesn't match policy."
+    _report_effective_mismatch
+    log_warn "A drop-in or later directive may override the main file. Roll back if needed:"
+    log_warn "    $ROLLBACK_CMD"
+  fi
+}
+
+# _report_effective_mismatch: print which directives are wrong and their value.
+_report_effective_mismatch() {
+  local k want got
+  for k in "${HARDENED_KEYS[@]}"; do
+    want="$(tr '[:upper:]' '[:lower:]' <<<"${HARDENED_VALUES[$k]}")"
+    got="$(sshd_effective_value "$k")"
+    if [[ "$got" != "$want" ]]; then
+      log_warn "  $k: effective='${got:-<unreadable>}' expected='$want'"
+    fi
+  done
 }
 
 reload_sshd() {
@@ -272,7 +428,8 @@ reload_sshd() {
 
 # --- STEP 5+6: DO NOT close session; confirm; or print rollback --------------
 step5_6_confirm_or_rollback() {
-  local rollback_cmd="sudo cp ${BACKUP_PATH:-<backup>} $SSHD_CONFIG && sudo systemctl reload ssh"
+  # ROLLBACK_CMD is set in step2_backup based on the target (drop-in vs main).
+  local rollback_cmd="${ROLLBACK_CMD:-sudo cp ${BACKUP_PATH:-<backup>} $SSHD_CONFIG && sudo systemctl reload ssh}"
 
   if [[ "$DRY_RUN" == "1" ]]; then
     log_step "Step 5/7 — (dry-run) session-safety confirmation"
@@ -395,8 +552,8 @@ main() {
   step7_optional_firewalling
 
   log_ok "SSH-hardening module finished."
-  [[ -n "$BACKUP_PATH" && "$DRY_RUN" != "1" ]] && \
-    log_info "Rollback anytime: sudo cp $BACKUP_PATH $SSHD_CONFIG && sudo systemctl reload ssh"
+  [[ -n "$ROLLBACK_CMD" && "$DRY_RUN" != "1" ]] && \
+    log_info "Rollback anytime: $ROLLBACK_CMD"
 }
 
 main "$@"
