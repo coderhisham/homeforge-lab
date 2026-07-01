@@ -209,6 +209,16 @@ cmd_install() {
   done
 
   if [[ "${#to_deploy[@]}" -gt 0 ]]; then
+    # Docker is a hard prerequisite for every stack module. Ensure it's present
+    # (idempotent; a no-op if already installed) before any network/deploy work.
+    if ! command -v docker >/dev/null 2>&1 || { [[ "$DRY_RUN" != "1" ]] && ! { docker info >/dev/null 2>&1 || sudo docker info >/dev/null 2>&1; }; }; then
+      log_step "Prerequisite: Docker"
+      local dk_args=()
+      [[ "$DRY_RUN" == "1" ]] && dk_args+=(--dry-run)
+      bash "$FORGE_MODULES/docker/install.sh" "${dk_args[@]}" \
+        || log_die "Docker is required for the selected services but could not be installed."
+    fi
+
     # Detect the box's MagicDNS name once so Caddy can request its *.ts.net cert.
     if [[ -z "${FORGE_TS_HOSTNAME:-}" ]] && command -v tailscale >/dev/null 2>&1; then
       FORGE_TS_HOSTNAME="$(tailscale status --json 2>/dev/null \
