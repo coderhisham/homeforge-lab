@@ -21,6 +21,12 @@ services:
     environment:
       # The scoping switch: only labeled containers are considered.
       WATCHTOWER_LABEL_ENABLE: "true"
+      # Watchtower 1.7.1 ships a Docker API client that defaults to v1.25, which
+      # modern Docker daemons reject ("client version 1.25 is too old, minimum
+      # 1.40"). Pin the client to 1.40 so it can talk to the daemon. Without
+      # this, every poll fails and the image's own healthcheck marks it
+      # unhealthy. 1.40 (Docker 19.03+) is safely below any current daemon.
+      DOCKER_API_VERSION: "1.40"
       # Clean up old images after updating, to save disk.
       WATCHTOWER_CLEANUP: "true"
       # Poll interval in seconds (default daily). Tunable via .env.
@@ -35,6 +41,9 @@ services:
       # Watchtower updates itself too (it is stateless).
       com.centurylinklabs.watchtower.enable: "true"
     # No network + no ports: it talks to Docker via the socket only.
-    # No in-container healthcheck (minimal image); healthcheck.sh checks run-state.
+    # No compose healthcheck declared here — but the containrrr/watchtower image
+    # ships its OWN HEALTHCHECK, which correctly reports unhealthy if it can't
+    # reach the Docker daemon (see DOCKER_API_VERSION above). forge honors that.
+    # healthcheck.sh additionally checks run-state.
 
 networks: {}
