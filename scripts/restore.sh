@@ -44,6 +44,15 @@ _dk() {
   else sudo docker "$@"; fi
 }
 
+# This script must run as root (root-owned repo/password, container volume swap).
+# Running as root means restic sees the exported RESTIC_* env directly, so we
+# call `restic` plainly — never via sudo (which would drop the env without -E).
+require_root() {
+  if [[ "$(id -u)" -ne 0 && "$DRY_RUN" != "1" ]]; then
+    log_die "Run as root: sudo ./scripts/restore.sh"
+  fi
+}
+
 setup_repo_env() {
   [[ -n "${RESTIC_REPOSITORY:-}" ]] || export RESTIC_REPOSITORY="$FORGE_BACKUP_REPO"
   if [[ -z "${RESTIC_PASSWORD:-}" && -z "${RESTIC_PASSWORD_FILE:-}" ]]; then
@@ -54,7 +63,7 @@ setup_repo_env() {
   log_info "Restic repo: $RESTIC_REPOSITORY"
 }
 
-list_snapshots() { run_cmd_sudo -E restic snapshots --tag forge; }
+list_snapshots() { run_cmd restic snapshots --tag forge; }
 
 # Restore the snapshot's staging tree into a scratch dir on the host.
 restore_to_scratch() {
@@ -65,7 +74,7 @@ restore_to_scratch() {
   fi
   run_cmd_sudo rm -rf "$RESTORE_SCRATCH"
   run_cmd_sudo mkdir -p "$RESTORE_SCRATCH"
-  run_cmd_sudo -E restic restore "$SNAPSHOT" --target "$RESTORE_SCRATCH" \
+  run_cmd restic restore "$SNAPSHOT" --target "$RESTORE_SCRATCH" \
     || log_die "restic restore failed."
 }
 
@@ -98,6 +107,7 @@ restore_volume() {
 
 main() {
   log_step "homelab-forge restore (Restic)"
+  require_root
   setup_repo_env
 
   if [[ "$LIST_ONLY" == "1" ]]; then

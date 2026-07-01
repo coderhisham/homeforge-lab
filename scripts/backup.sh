@@ -42,6 +42,17 @@ _dk() {
   else sudo docker "$@"; fi
 }
 
+# This script must run as root: the Restic repo + password file live under
+# /var/lib/forge (root, 0600) and staging reads container volumes. Running as
+# root also means restic sees the exported RESTIC_* env directly — so we call
+# `restic` plainly, never via sudo (sudo would drop the env without -E, and
+# run_cmd_sudo doesn't take sudo flags).
+require_root() {
+  if [[ "$(id -u)" -ne 0 && "$DRY_RUN" != "1" ]]; then
+    log_die "Run as root: sudo ./scripts/backup.sh"
+  fi
+}
+
 require_restic() {
   if command -v restic >/dev/null 2>&1; then return 0; fi
   log_step "Installing Restic"
@@ -154,6 +165,7 @@ stage_data() {
 
 main() {
   log_step "homelab-forge backup (Restic)"
+  require_root
   require_restic
   setup_repo_env
   init_repo_if_needed
@@ -169,16 +181,16 @@ main() {
   if [[ "$DRY_RUN" == "1" ]]; then
     log_info "[dry-run] would run: restic backup --tag forge --host \$(hostname) $staging"
   else
-    run_cmd_sudo -E restic backup --tag forge "$staging" \
+    run_cmd restic backup --tag forge "$staging" \
       || log_die "restic backup failed."
     # Retention: keep last 7 daily, 4 weekly, 6 monthly (tunable via env).
-    run_cmd_sudo -E restic forget --tag forge \
+    run_cmd restic forget --tag forge \
       --keep-daily "${FORGE_KEEP_DAILY:-7}" \
       --keep-weekly "${FORGE_KEEP_WEEKLY:-4}" \
       --keep-monthly "${FORGE_KEEP_MONTHLY:-6}" \
       --prune || log_warn "restic forget/prune reported an issue (backup itself succeeded)."
     # Clean the plaintext staging dir now that it's safely in the encrypted repo.
-    run_cmd_sudo rm -rf "$staging"
+    run_cmd rm -rf "$staging"
     log_ok "Backup complete. Verify with: restic snapshots"
   fi
 }
