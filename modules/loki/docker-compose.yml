@@ -3,9 +3,9 @@
 #
 # Storage: filesystem (local volume) — the simplest, dependency-free setup for a
 # single homelab box. No S3/object store needed. Logs are pushed here by
-# Promtail and queried in Grafana.
+# Grafana Alloy and queried in Grafana.
 #
-# Networking: forge_internal — Promtail ships to it and Grafana reads it, both
+# Networking: forge_internal — Alloy ships to it and Grafana reads it, both
 # privately. Not Caddy-fronted (no public UI; you view logs through Grafana).
 #
 # Stateful (log store grows): NO watchtower label — update deliberately.

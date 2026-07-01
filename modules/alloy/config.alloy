@@ -1,0 +1,53 @@
+// modules/alloy/config.alloy — ship ALL container logs to Loki (Promtail successor).
+//
+// Pipeline: discover Docker containers -> relabel Docker metadata into useful
+// Loki labels -> read each container's logs -> write to Loki. No per-service
+// config; new containers are picked up automatically.
+
+// 1. Discover all Docker containers via the mounted socket.
+discovery.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "15s"
+}
+
+// 2. Turn Docker metadata into Loki labels (mirrors the old Promtail relabels).
+discovery.relabel "containers" {
+	targets = discovery.docker.containers.targets
+
+	// Container name, stripping Docker's leading slash.
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+	// Compose project + service (all forge_* containers set these).
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "compose_project"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "compose_service"
+	}
+	// Stable job label so everything is queryable as {job="containers"} — the
+	// same label the old Promtail config used, so existing Grafana panels/
+	// queries keep working unchanged.
+	rule {
+		target_label = "job"
+		replacement  = "containers"
+	}
+}
+
+// 3. Read logs from the discovered+relabeled containers.
+loki.source.docker "default" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.containers.output
+	forward_to = [loki.write.default.receiver]
+}
+
+// 4. Ship to Loki (same endpoint Promtail used).
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

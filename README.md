@@ -21,7 +21,7 @@ cd homelab-forge
 | **Data** | PostgreSQL (multi-db), Redis, MinIO (S3), Qdrant (vectors) |
 | **AI** | Ollama (local LLMs), LiteLLM (OpenAI-compatible gateway) |
 | **Automation** | n8n (workflows) |
-| **Observability** | Prometheus + node-exporter + cAdvisor, Loki, Promtail, Grafana |
+| **Observability** | Prometheus + node-exporter + cAdvisor, Loki, Alloy, Grafana |
 | **Backup** | Restic (encrypted, local + remote repos) |
 
 Every service is individually selectable. Core (Caddy + Portainer) is
@@ -61,7 +61,7 @@ flowchart TB
         litellm --> ollama
         grafana --> prometheus & loki
         prometheus -.scrapes.-> nodeexp["node-exporter"] & cadvisor["cAdvisor"]
-        promtail["Promtail"] -.ships logs.-> loki
+        alloy["Alloy"] -.ships logs.-> loki
         watchtower["Watchtower<br/>(labeled services only)"]
         restic["Restic backups<br/>(encrypted)"] -.-> postgres & minio & qdrant
     end

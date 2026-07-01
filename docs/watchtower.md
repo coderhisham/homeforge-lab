@@ -21,7 +21,7 @@ it on **stateful** ones:
 
 | Auto-updated (labeled) | Pinned — manual update only (no label) |
 |---|---|
-| Caddy, Portainer, Watchtower, n8n, Ollama, LiteLLM, Promtail, Grafana | Postgres, Redis, MinIO, Qdrant, Prometheus, Loki |
+| Caddy, Portainer, Watchtower, n8n, Ollama, LiteLLM, Alloy, Grafana | Postgres, Redis, MinIO, Qdrant, Prometheus, Loki |
 
 The pinned services hold your data. Update them deliberately, **after a backup**
 (`scripts/backup.sh`), by bumping the image tag in their `docker-compose.yml`

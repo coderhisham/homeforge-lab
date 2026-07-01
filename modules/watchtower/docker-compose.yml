@@ -5,7 +5,7 @@
 # ONLY updates containers that explicitly carry the label
 #   com.centurylinklabs.watchtower.enable=true
 # Every stateless service in forge sets that label (Caddy, Portainer, n8n,
-# Ollama, LiteLLM, Promtail, Grafana). STATEFUL services deliberately OMIT it
+# Ollama, LiteLLM, Alloy, Grafana). STATEFUL services deliberately OMIT it
 # (Postgres, Redis, MinIO, Qdrant, Prometheus, Loki) so their data is never put
 # at risk by an unattended image bump — those you update manually, after a
 # backup. Watchtower itself is safe to auto-update (opt-in below).

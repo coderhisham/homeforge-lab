@@ -1,0 +1,41 @@
+# modules/alloy/docker-compose.yml
+# Grafana Alloy for homelab-forge — ships ALL container logs to Loki.
+#
+# Alloy is Grafana's actively-maintained successor to Promtail (which reached
+# EOL on 2026-03-02). Same job, zero per-service config: it uses Docker service
+# discovery to find every running container and forwards their logs to Loki.
+#
+# Networking: forge_internal — pushes to loki:3100. No published ports.
+# Access: read-only Docker socket (discovery) + container log dir (log files).
+# Stateless shipper — watchtower opt-in.
+
+services:
+  alloy:
+    image: grafana/alloy:v1.7.5   # ⚠ VM-verify: confirm latest v1.x tag on Docker Hub
+    container_name: forge_alloy
+    restart: unless-stopped
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro      # container discovery
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro  # log files
+      - alloy_data:/var/lib/alloy/data                    # positions/WAL
+    networks:
+      - forge_internal
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    # No in-container healthcheck (distroless-ish image); healthcheck.sh probes
+    # /-/ready on :12345 from a curl container.
+
+volumes:
+  alloy_data:
+    name: forge_alloy_data
+
+networks:
+  forge_internal:
+    external: true
+    name: forge_internal

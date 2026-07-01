@@ -14,7 +14,7 @@
 # skipped. Dependencies are still auto-added (with a log note) unless listed.
 # Valid names: tailscale ssh-hardening caddy portainer watchtower
 #              postgres redis minio qdrant ollama litellm n8n
-#              prometheus grafana loki promtail restic
+#              prometheus grafana loki alloy restic
 services:
   - caddy
   - portainer

@@ -44,7 +44,7 @@ litellm|ai|-|256|100|yes|both|Gateway to Ollama + OpenAI/Gemini-compatible APIs
 n8n|automation|postgres redis|512|300|yes|both|Workflow automation (needs Postgres + Redis)
 prometheus|observability|-|512|1024|yes|both|Metrics collection + TSDB (grows)
 loki|observability|-|256|1024|yes|internal|Log aggregation (stateful; grows)
-promtail|observability|loki|128|50|yes|internal|Ships all container logs to Loki
+alloy|observability|loki|128|100|yes|internal|Ships all container logs to Loki (Grafana Alloy; Promtail successor)
 grafana|observability|prometheus loki|256|200|yes|both|Dashboards (needs Prometheus + Loki datasources)
 restic|backup|-|64|100|no|none|Encrypted scheduled backups (local + remote repos)
 REGISTRY
