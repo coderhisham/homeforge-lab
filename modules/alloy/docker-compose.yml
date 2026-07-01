@@ -11,7 +11,7 @@
 
 services:
   alloy:
-    image: grafana/alloy:v1.7.5   # ⚠ VM-verify: confirm latest v1.x tag on Docker Hub
+    image: grafana/alloy:v1.7.5   # VM-confirmed pull (2026)
     container_name: forge_alloy
     restart: unless-stopped
     command:

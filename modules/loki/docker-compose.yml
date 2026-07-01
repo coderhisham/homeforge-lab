@@ -12,7 +12,7 @@
 
 services:
   loki:
-    image: grafana/loki:3.5.0   # ⚠ VM-verify: confirm latest 3.5.x patch on Docker Hub
+    image: grafana/loki:3.5.0   # VM-confirmed pull (2026)
     container_name: forge_loki
     restart: unless-stopped
     command: ["-config.file=/etc/loki/loki-config.yaml"]

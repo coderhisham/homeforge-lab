@@ -19,7 +19,7 @@
 
 services:
   qdrant:
-    image: qdrant/qdrant:v1.17.0   # ⚠ VM-verify: confirm latest v1.17.x patch on Docker Hub
+    image: qdrant/qdrant:v1.18.1   # confirmed latest on Docker Hub (2026)
     container_name: forge_qdrant
     restart: unless-stopped
     environment:

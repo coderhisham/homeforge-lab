@@ -18,7 +18,7 @@
 
 services:
   portainer:
-    image: portainer/portainer-ce:2.33.0   # pinned; update deliberately. ⚠ VM-verify latest 2.33.x patch
+    image: portainer/portainer-ce:2.33.6   # pinned; update deliberately. Confirmed on Docker Hub (2026)
     container_name: forge_portainer
     restart: unless-stopped
     # NO published ports by default: access is via Caddy over the tailnet.
