@@ -1,0 +1,77 @@
+# homelab-forge configuration (example)
+#
+# Copy to forge.config.yaml and edit. forge.config.yaml is git-ignored because it
+# may contain auth keys / tokens. All keys are OPTIONAL — anything omitted falls
+# back to interactive prompts or documented defaults.
+#
+# Non-interactive install:
+#   ./forge.sh install --config forge.config.yaml
+# or select on the CLI directly:
+#   ./forge.sh install --with caddy,portainer,postgres,redis
+
+# --- Service selection -------------------------------------------------------
+# Explicit list of services to install. If present, the interactive menu is
+# skipped. Dependencies are still auto-added (with a log note) unless listed.
+# Valid names: tailscale ssh-hardening caddy portainer watchtower
+#              postgres redis minio qdrant ollama litellm n8n
+#              prometheus grafana loki promtail restic
+services:
+  - caddy
+  - portainer
+  # - postgres
+  # - redis
+
+# --- Access layer ------------------------------------------------------------
+access:
+  tailscale:
+    # Provide an auth key to bring Tailscale up non-interactively.
+    # Leave blank/omit to fall back to interactive `tailscale up` (browser or
+    # printed URL on headless boxes). NEVER commit a real key.
+    auth_key: ""
+    # SSH access model: "tailscale-ssh" (Tailscale-managed) or "sshd" (traditional
+    # key auth). If omitted, forge asks explicitly.
+    ssh_mode: ""
+  ssh_hardening:
+    # PermitRootLogin: "no" (default) or "prohibit-password" (root key recovery).
+    permit_root_login: "no"
+    # Configure fail2ban for sshd after hardening.
+    fail2ban: true
+    # Restrict port 22 to the tailscale0 interface via ufw. Only applied AFTER
+    # Tailscale connectivity is verified. Requires tailscale installed.
+    ufw_ssh_tailscale_only: true
+
+# --- Reverse proxy / TLS -----------------------------------------------------
+caddy:
+  # TLS mode: "tailscale" (MagicDNS *.ts.net certs, default, no open ports) or
+  # "public" (public domain + Let's Encrypt — requires domain + DNS token below).
+  tls_mode: "tailscale"
+  # Only used when tls_mode: public
+  # public_domain: "example.com"
+  # dns_provider: "cloudflare"
+  # dns_api_token: ""
+
+# --- Resource overrides (soft by default) ------------------------------------
+# Forge sets mem_reservation (soft) per service and documents recommended ceilings.
+# To enforce a HARD memory limit for a service, set it here (e.g. "8g").
+# Leaving this empty means no hard cap (recommended for Ollama).
+resources:
+  # ollama:
+  #   mem_limit: ""      # e.g. "12g" — omit for no hard cap
+  # postgres:
+  #   mem_limit: ""
+
+# --- Data layer --------------------------------------------------------------
+postgres:
+  # Databases to create on first init (multi-db support). One role per db.
+  databases:
+    - n8n
+    # - litellm
+
+# --- Backup (Restic) ---------------------------------------------------------
+restic:
+  # "local" (encrypted repo on this box, default) or an rclone/S3 target string.
+  repo: "local"
+  # Cron schedule for scheduled backups (systemd timer or cron). Empty = manual.
+  schedule: "0 3 * * *"
+  # Paths in addition to the auto-included Docker volumes.
+  extra_paths: []
