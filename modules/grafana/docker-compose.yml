@@ -15,7 +15,7 @@
 
 services:
   grafana:
-    image: grafana/grafana:11.5.1
+    image: grafana/grafana:13.0.0   # ⚠ VM-verify tag: confirm 13.x patch on Docker Hub
     container_name: forge_grafana
     restart: unless-stopped
     environment:

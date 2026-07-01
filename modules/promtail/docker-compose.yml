@@ -13,7 +13,7 @@
 
 services:
   promtail:
-    image: grafana/promtail:3.4.1
+    image: grafana/promtail:3.5.0   # ⚠ EOL (Mar 2026); final line is 3.5.x. Migrate to Grafana Alloy long-term.
     container_name: forge_promtail
     restart: unless-stopped
     command: ["-config.file=/etc/promtail/promtail-config.yaml"]
