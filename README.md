@@ -40,6 +40,9 @@ Every service is **individually selectable**. Core (Caddy + Portainer) is
 pre-selected; heavy services (MinIO, Qdrant, Ollama) are opt-in. Dependencies
 resolve automatically — pick n8n and it pulls in Postgres + Redis.
 
+> New to these tools? **[Services explained (for beginners)](docs/services-explained.md)**
+> tells you what each one is and why you'd want it, in plain English.
+
 ## Getting Started
 
 From a bare server to a running private stack in ~20 minutes. No prior
@@ -220,6 +223,8 @@ unclear, open an issue and ask.
   questions, ideas, show-and-tell, help with your setup.
 - **[Issues](https://github.com/coderhisham/tuninforge/issues)** — bugs and
   feature requests.
+- **[Services explained (for beginners)](docs/services-explained.md)** — what
+  each tool is and why you'd want it, in plain English.
 - **[Per-service docs](docs/)** — every service has a page covering what it
   does, how to verify it, common failure modes, and backup/restore.
 
