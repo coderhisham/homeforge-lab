@@ -25,8 +25,12 @@ services:
       - "443:443/udp"   # HTTP/3
     environment:
       # The box's MagicDNS name, e.g. myhost.tailnet-1234.ts.net. Consumed by
-      # the Caddyfile. forge.sh fills this from `tailscale status` when possible.
-      FORGE_TS_HOSTNAME: "${FORGE_TS_HOSTNAME:-}"
+      # the Caddyfile as the site address. Compose's ${VAR:-default} (with the
+      # colon) substitutes ":80" when the var is unset OR empty, so Caddy always
+      # receives a VALID site address — a real hostname (auto-TLS) or ":80"
+      # (plain HTTP). This prevents the empty-address parse error that made Caddy
+      # crash-loop. forge.sh fills the hostname from `tailscale status`.
+      FORGE_TS_HOSTNAME: "${FORGE_TS_HOSTNAME:-:80}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./conf.d:/etc/caddy/conf.d:ro          # per-service site blocks (later phases)

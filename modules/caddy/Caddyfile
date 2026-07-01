@@ -16,11 +16,15 @@
 	# debug
 }
 
-# Landing site on the box's MagicDNS name. FORGE_TS_HOSTNAME is provided by the
-# environment (forge.sh derives it from `tailscale status`). If it is empty,
-# Caddy still starts and serves this block on :443 for any host, so the proxy is
-# never dead — it just won't have a MagicDNS cert until the hostname is set.
-{$FORGE_TS_HOSTNAME} {
+# Landing site. The address uses Caddy's env-default syntax:
+#   {$FORGE_TS_HOSTNAME::80}
+#     - when FORGE_TS_HOSTNAME is set  -> "<host>.ts.net" (Caddy fetches the
+#       MagicDNS cert from tailscaled and serves HTTPS automatically)
+#     - when it is EMPTY               -> ":80" (plain HTTP on port 80)
+# This guarantees a VALID site address in both cases. A bare "{$FORGE_TS_HOSTNAME}"
+# would expand to an empty address when unset, which is a Caddyfile parse error
+# that makes Caddy exit and crash-loop — so the default is required, not optional.
+{$FORGE_TS_HOSTNAME::80} {
 	# Simple health/landing response so hitting the host root confirms Caddy is
 	# up before any downstream service is wired in.
 	respond /healthz "ok" 200

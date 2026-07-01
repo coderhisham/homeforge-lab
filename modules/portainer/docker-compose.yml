@@ -31,13 +31,13 @@ services:
     labels:
       # Portainer is not a stateful data service; safe to auto-update. Opt in.
       com.centurylinklabs.watchtower.enable: "true"
-    healthcheck:
-      # Portainer serves its UI/API on :9000 (HTTP) inside the container.
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000/api/status"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+    # NOTE: no `healthcheck:` here on purpose. The portainer-ce image is
+    # distroless — it has no wget, curl, or shell — so an in-container CMD
+    # healthcheck is impossible (verified: `exec "wget"/"sh": not found`).
+    # homelab-forge's health poller (lib/health.sh) treats a container with no
+    # declared healthcheck as healthy once it is running and stable, so liveness
+    # is still verified. External HTTP reachability is confirmed via
+    # modules/portainer/healthcheck.sh and, in practice, by Caddy proxying it.
 
 volumes:
   portainer_data:
