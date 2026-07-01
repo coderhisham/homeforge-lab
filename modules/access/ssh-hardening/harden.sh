@@ -39,6 +39,7 @@ PERMIT_ROOT_LOGIN="${SSH_PERMIT_ROOT_LOGIN:-no}"
 BACKUP_PATH=""       # set in step 2; referenced by the rollback message.
 ROLLBACK_CMD=""      # exact rollback command, built once the target is known.
 HARDEN_TARGET=""     # "dropin" (modern Ubuntu) or "mainfile" (no Include).
+HARDEN_CHANGED=0     # set to 1 only when we actually write/reload a config change.
 
 # --- Local flag parse (module can be invoked standalone) ---------------------
 while [[ $# -gt 0 ]]; do
@@ -339,6 +340,7 @@ _apply_dropin() {
 
   # The crucial check: did the EFFECTIVE values actually become what we want?
   if effective_matches_policy; then
+    HARDEN_CHANGED=1
     log_ok "Verified via sshd -T: all hardened directives are now in effect."
   else
     log_error "sshd -T shows the effective config does NOT match policy after applying."
@@ -387,6 +389,7 @@ _apply_mainfile() {
   reload_sshd
 
   if effective_matches_policy; then
+    HARDEN_CHANGED=1
     log_ok "Verified via sshd -T: all hardened directives are now in effect."
   else
     log_warn "sshd -T shows the effective config still doesn't match policy."
@@ -435,6 +438,15 @@ step5_6_confirm_or_rollback() {
     log_step "Step 5/7 — (dry-run) session-safety confirmation"
     log_info "[dry-run] Real run would now require you to verify a fresh SSH session."
     log_info "[dry-run] Rollback command would be: $rollback_cmd"
+    return 0
+  fi
+
+  # If nothing was actually changed (effective config already matched policy),
+  # there is no new risk to verify and nothing to roll back — skip the alarming
+  # second-terminal dance entirely.
+  if [[ "$HARDEN_CHANGED" != "1" ]]; then
+    log_step "Steps 5-6/7 — No change applied"
+    log_ok "SSH config already met the policy; no sshd change was made, so there is nothing to verify or roll back."
     return 0
   fi
 
@@ -552,7 +564,7 @@ main() {
   step7_optional_firewalling
 
   log_ok "SSH-hardening module finished."
-  [[ -n "$ROLLBACK_CMD" && "$DRY_RUN" != "1" ]] && \
+  [[ "$HARDEN_CHANGED" == "1" && -n "$ROLLBACK_CMD" && "$DRY_RUN" != "1" ]] && \
     log_info "Rollback anytime: $ROLLBACK_CMD"
 }
 
