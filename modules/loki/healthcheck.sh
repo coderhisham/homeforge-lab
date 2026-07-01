@@ -6,4 +6,4 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../lib/probe.sh
 source "$DIR/../../lib/probe.sh"
-forge_http_ready loki forge_loki forge_internal "http://forge_loki:3100/ready"
+tuninforge_http_ready loki tuninforge_loki tuninforge_internal "http://tuninforge_loki:3100/ready"

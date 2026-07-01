@@ -1,12 +1,12 @@
-// Command forge-tui renders the homelab-forge service selection UI.
+// Command tuninforge-tui renders the tuninforge service selection UI.
 //
 // Contract (keeps lib/deps.sh the single source of truth, Bash authoritative):
-//   - Reads the service registry as JSON on STDIN (emitted by forge_registry_json).
+//   - Reads the service registry as JSON on STDIN (emitted by tuninforge_registry_json).
 //   - Renders the interactive UI to STDERR (so STDOUT stays clean).
 //   - On "Proceed", prints the space-separated RAW picks to STDOUT and exits 0.
 //   - On cancel/quit, prints nothing and exits 1.
 //
-// It never resolves dependencies authoritatively — Bash re-runs forge_install_order
+// It never resolves dependencies authoritatively — Bash re-runs tuninforge_install_order
 // on the picks. The TUI computes a dependency closure only to show an accurate
 // footprint/summary; that is a presentation concern, not the source of truth.
 package main
@@ -23,7 +23,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// --- Registry types (mirror forge_registry_json) ----------------------------
+// --- Registry types (mirror tuninforge_registry_json) ----------------------------
 
 type layer struct {
 	Key   string `json:"key"`
@@ -296,7 +296,7 @@ func (m model) View() string {
 
 func (m model) viewFork() string {
 	var b strings.Builder
-	b.WriteString(stTitle.Render("How do you want to set up homelab-forge?") + "\n\n")
+	b.WriteString(stTitle.Render("How do you want to set up tuninforge?") + "\n\n")
 	opts := []struct{ name, desc string }{
 		{"QuickStart", "Recommended defaults (Caddy + Portainer)"},
 		{"Advanced", "Choose every service, grouped by layer"},
@@ -419,16 +419,16 @@ func main() {
 		raw, err = io.ReadAll(os.Stdin)
 	}
 	if err != nil || len(strings.TrimSpace(string(raw))) == 0 {
-		fmt.Fprintln(os.Stderr, "forge-tui: no registry JSON (pass a file path argument)")
+		fmt.Fprintln(os.Stderr, "tuninforge-tui: no registry JSON (pass a file path argument)")
 		os.Exit(2)
 	}
 	var reg registry
 	if err := json.Unmarshal(raw, &reg); err != nil {
-		fmt.Fprintln(os.Stderr, "forge-tui: invalid registry JSON:", err)
+		fmt.Fprintln(os.Stderr, "tuninforge-tui: invalid registry JSON:", err)
 		os.Exit(2)
 	}
 	if len(reg.Services) == 0 {
-		fmt.Fprintln(os.Stderr, "forge-tui: registry has no services")
+		fmt.Fprintln(os.Stderr, "tuninforge-tui: registry has no services")
 		os.Exit(2)
 	}
 
@@ -437,7 +437,7 @@ func main() {
 	p := tea.NewProgram(newModel(reg), tea.WithOutput(os.Stderr))
 	res, err := p.Run()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "forge-tui:", err)
+		fmt.Fprintln(os.Stderr, "tuninforge-tui:", err)
 		os.Exit(2)
 	}
 	fm := res.(model)

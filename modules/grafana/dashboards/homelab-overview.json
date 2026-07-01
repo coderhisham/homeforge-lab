@@ -3,8 +3,8 @@
   "editable": true,
   "graphTooltip": 0,
   "title": "Homelab Overview",
-  "uid": "homelab-forge-overview",
-  "tags": ["homelab-forge"],
+  "uid": "tuninforge-overview",
+  "tags": ["tuninforge"],
   "timezone": "",
   "schemaVersion": 39,
   "version": 1,
@@ -16,11 +16,11 @@
       "title": "CPU busy % (host)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "forge-prometheus" },
+      "datasource": { "type": "prometheus", "uid": "tuninforge-prometheus" },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "forge-prometheus" },
+          "datasource": { "type": "prometheus", "uid": "tuninforge-prometheus" },
           "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
         }
       ]
@@ -30,11 +30,11 @@
       "title": "Memory used % (host)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "forge-prometheus" },
+      "datasource": { "type": "prometheus", "uid": "tuninforge-prometheus" },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "forge-prometheus" },
+          "datasource": { "type": "prometheus", "uid": "tuninforge-prometheus" },
           "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100"
         }
       ]
@@ -44,25 +44,25 @@
       "title": "Per-container memory (cAdvisor)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "forge-prometheus" },
+      "datasource": { "type": "prometheus", "uid": "tuninforge-prometheus" },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "forge-prometheus" },
-          "expr": "sum by (name) (container_memory_usage_bytes{name=~\"forge_.*\"})"
+          "datasource": { "type": "prometheus", "uid": "tuninforge-prometheus" },
+          "expr": "sum by (name) (container_memory_usage_bytes{name=~\"tuninforge_.*\"})"
         }
       ]
     },
     {
       "id": 4,
-      "title": "Container logs (all forge_* via Loki)",
+      "title": "Container logs (all tuninforge_* via Loki)",
       "type": "logs",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "loki", "uid": "forge-loki" },
+      "datasource": { "type": "loki", "uid": "tuninforge-loki" },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "loki", "uid": "forge-loki" },
+          "datasource": { "type": "loki", "uid": "tuninforge-loki" },
           "expr": "{job=\"containers\"}"
         }
       ]

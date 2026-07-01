@@ -20,7 +20,7 @@ discovery.relabel "containers" {
 		regex         = "/(.*)"
 		target_label  = "container"
 	}
-	// Compose project + service (all forge_* containers set these).
+	// Compose project + service (all tuninforge_* containers set these).
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
 		target_label  = "compose_project"

@@ -1,12 +1,12 @@
 # modules/grafana/provisioning/datasources/datasources.yaml
 # Auto-provisioned datasources — added at Grafana startup, no manual setup.
-# Prometheus (metrics) and Loki (logs) are reached over forge_internal.
+# Prometheus (metrics) and Loki (logs) are reached over tuninforge_internal.
 
 apiVersion: 1
 
 datasources:
   - name: Prometheus
-    uid: forge-prometheus
+    uid: tuninforge-prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -14,7 +14,7 @@ datasources:
     editable: false
 
   - name: Loki
-    uid: forge-loki
+    uid: tuninforge-loki
     type: loki
     access: proxy
     url: http://loki:3100

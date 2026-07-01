@@ -46,7 +46,7 @@ curl -s http://<host>.ts.net/v1/chat/completions \
 |---|---|
 | 401 Unauthorized | Missing/wrong master key. Use the value in `modules/litellm/.env`. |
 | Model request errors, gateway healthy | The backend (Ollama model not pulled, or provider key unset) — not LiteLLM itself. Pull the model / set the key. |
-| Startup fails on config | YAML error in `config.yaml`, or a referenced `os.environ/KEY` isn't set. Check `docker logs forge_litellm`. |
+| Startup fails on config | YAML error in `config.yaml`, or a referenced `os.environ/KEY` isn't set. Check `docker logs tuninforge_litellm`. |
 
 ## Backup / restore
 

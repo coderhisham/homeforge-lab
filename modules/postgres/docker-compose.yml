@@ -1,10 +1,10 @@
 # modules/postgres/docker-compose.yml
-# PostgreSQL for homelab-forge — the shared relational database.
+# PostgreSQL for tuninforge — the shared relational database.
 #
-# Isolation: joins ONLY forge_internal (an --internal network with no outbound/
+# Isolation: joins ONLY tuninforge_internal (an --internal network with no outbound/
 # gateway), so it is reachable by other stack services that also join that
 # network, never from the public/tailnet side. It is deliberately NOT on
-# forge_public and publishes NO ports.
+# tuninforge_public and publishes NO ports.
 #
 # Stateful: NO watchtower label — databases are never auto-updated (a bad
 # upgrade can corrupt data). Update deliberately, after a backup.
@@ -15,12 +15,12 @@
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: forge_postgres
+    container_name: tuninforge_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: "${POSTGRES_USER:-forge}"
+      POSTGRES_USER: "${POSTGRES_USER:-tuninforge}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (see .env)}"
-      POSTGRES_DB: "${POSTGRES_DB:-forge}"
+      POSTGRES_DB: "${POSTGRES_DB:-tuninforge}"
       POSTGRES_MULTIPLE_DATABASES: "${POSTGRES_MULTIPLE_DATABASES:-}"
       # Keep initdb deterministic across hosts.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
@@ -33,10 +33,10 @@ services:
       # First-boot database creation. Runs only when the data dir is empty.
       - ./initdb:/docker-entrypoint-initdb.d:ro
     networks:
-      - forge_internal
+      - tuninforge_internal
     healthcheck:
       # pg_isready ships with the postgres image — no external tools needed.
-      test: ["CMD-SHELL", "pg_isready -U \"${POSTGRES_USER:-forge}\" -d \"${POSTGRES_DB:-forge}\""]
+      test: ["CMD-SHELL", "pg_isready -U \"${POSTGRES_USER:-tuninforge}\" -d \"${POSTGRES_DB:-tuninforge}\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,9 +44,9 @@ services:
 
 volumes:
   postgres_data:
-    name: forge_postgres_data
+    name: tuninforge_postgres_data
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
+    name: tuninforge_internal

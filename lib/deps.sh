@@ -3,7 +3,7 @@
 #
 # The TUI, summary screen, footprint totals, dependency auto-check, `status`,
 # and `add`/`remove` all read from the registry defined here. Nothing else in
-# homelab-forge should hard-code a service list.
+# tuninforge should hard-code a service list.
 #
 # PORTABILITY: this file intentionally avoids `declare -A` (bash 4+) and uses
 # pipe-delimited records + pure functions instead, so the dependency and
@@ -11,8 +11,8 @@
 # and bash 5.x (Ubuntu LTS, the real target). The logic here is pure — it never
 # touches the system — which is what makes it testable without a VM.
 
-[[ -n "${_FORGE_DEPS_SH:-}" ]] && return 0
-_FORGE_DEPS_SH=1
+[[ -n "${_TUNINFORGE_DEPS_SH:-}" ]] && return 0
+_TUNINFORGE_DEPS_SH=1
 
 # --- Registry ----------------------------------------------------------------
 # One record per service, fields separated by '|':
@@ -28,7 +28,7 @@ _FORGE_DEPS_SH=1
 # RAM/disk are deliberate ESTIMATES for the summary screen, not hard limits
 # (limits are soft by design — see the plan). Values err toward the base image
 # footprint; stateful services grow with your data.
-forge_registry() {
+tuninforge_registry() {
   cat <<'REGISTRY'
 tailscale|access|-|30|50|no|none|Mesh VPN; installed first so the box is safely reachable
 ssh-hardening|access|-|0|0|no|none|Lockout-safe OpenSSH hardening (config only, no container)
@@ -51,36 +51,36 @@ REGISTRY
 }
 
 # --- Basic accessors ---------------------------------------------------------
-# forge_all_services -> newline list of every service name, in registry order.
-forge_all_services() { forge_registry | awk -F'|' 'NF{print $1}'; }
+# tuninforge_all_services -> newline list of every service name, in registry order.
+tuninforge_all_services() { tuninforge_registry | awk -F'|' 'NF{print $1}'; }
 
-# forge_is_service <name> -> 0 if known, 1 otherwise.
-forge_is_service() {
+# tuninforge_is_service <name> -> 0 if known, 1 otherwise.
+tuninforge_is_service() {
   local n="$1"
-  forge_registry | awk -F'|' -v n="$n" 'BEGIN{f=1} $1==n{f=0} END{exit f}'
+  tuninforge_registry | awk -F'|' -v n="$n" 'BEGIN{f=1} $1==n{f=0} END{exit f}'
 }
 
-# forge_field <name> <field-index 1..8> -> the field value (empty if unknown).
-forge_field() {
+# tuninforge_field <name> <field-index 1..8> -> the field value (empty if unknown).
+tuninforge_field() {
   local n="$1" idx="$2"
-  forge_registry | awk -F'|' -v n="$n" -v i="$idx" '$1==n{print $i; exit}'
+  tuninforge_registry | awk -F'|' -v n="$n" -v i="$idx" '$1==n{print $i; exit}'
 }
 
 # Named field helpers for readability.
-forge_layer()      { forge_field "$1" 2; }
-forge_deps()       { local d; d="$(forge_field "$1" 3)"; [[ "$d" == "-" ]] && d=""; echo "$d"; }
-forge_ram()        { forge_field "$1" 4; }
-forge_disk()       { forge_field "$1" 5; }
-forge_watchtower() { forge_field "$1" 6; }
-forge_networks()   { forge_field "$1" 7; }
-forge_desc()       { forge_field "$1" 8; }
+tuninforge_layer()      { tuninforge_field "$1" 2; }
+tuninforge_deps()       { local d; d="$(tuninforge_field "$1" 3)"; [[ "$d" == "-" ]] && d=""; echo "$d"; }
+tuninforge_ram()        { tuninforge_field "$1" 4; }
+tuninforge_disk()       { tuninforge_field "$1" 5; }
+tuninforge_watchtower() { tuninforge_field "$1" 6; }
+tuninforge_networks()   { tuninforge_field "$1" 7; }
+tuninforge_desc()       { tuninforge_field "$1" 8; }
 
 # --- Layers ------------------------------------------------------------------
 # Ordered so the UI presents Access first (installed first) through Backup last.
-forge_layers() { printf '%s\n' access core data ai automation observability backup; }
+tuninforge_layers() { printf '%s\n' access core data ai automation observability backup; }
 
 # Human-friendly layer titles for the checklist headers.
-forge_layer_title() {
+tuninforge_layer_title() {
   case "$1" in
     access)        echo "Access" ;;
     core)          echo "Core" ;;
@@ -93,20 +93,20 @@ forge_layer_title() {
   esac
 }
 
-# forge_services_in_layer <layer> -> newline list, registry order.
-forge_services_in_layer() {
+# tuninforge_services_in_layer <layer> -> newline list, registry order.
+tuninforge_services_in_layer() {
   local layer="$1"
-  forge_registry | awk -F'|' -v L="$layer" '$2==L{print $1}'
+  tuninforge_registry | awk -F'|' -v L="$layer" '$2==L{print $1}'
 }
 
 # --- QuickStart defaults -----------------------------------------------------
 # Mirrors OpenClaw's QuickStart: sensible core, minimal questions. Core services
 # only (Caddy + Portainer). Access + everything else is opt-in.
-# forge_quickstart_defaults() { printf '%s\n' caddy portainer; }
-forge_quickstart_defaults() { printf '%s\n' caddy portainer; }
+# tuninforge_quickstart_defaults() { printf '%s\n' caddy portainer; }
+tuninforge_quickstart_defaults() { printf '%s\n' caddy portainer; }
 
 # --- JSON serialization for the Go TUI ---------------------------------------
-# forge_registry_json -> emit the full catalog as a JSON object the external
+# tuninforge_registry_json -> emit the full catalog as a JSON object the external
 # selection TUI consumes on stdin. This keeps lib/deps.sh the SINGLE source of
 # truth: the Go TUI is a pure view over this data and never hard-codes services.
 #
@@ -120,21 +120,21 @@ forge_quickstart_defaults() { printf '%s\n' caddy portainer; }
 # Registry fields contain no double-quotes or backslashes, so escaping reduces
 # to a no-op here; awk still routes text through a json-string helper in case
 # the catalog gains punctuation later.
-forge_registry_json() {
-  local defaults; defaults=" $(forge_quickstart_defaults | tr '\n' ' ') "
+tuninforge_registry_json() {
+  local defaults; defaults=" $(tuninforge_quickstart_defaults | tr '\n' ' ') "
   {
-    # layers array (key + human title), preserving forge_layers order.
+    # layers array (key + human title), preserving tuninforge_layers order.
     printf '{"layers":['
     local first=1 layer
     while IFS= read -r layer; do
       [[ $first -eq 1 ]] || printf ','
       first=0
-      printf '{"key":"%s","title":"%s"}' "$layer" "$(forge_layer_title "$layer")"
-    done < <(forge_layers)
+      printf '{"key":"%s","title":"%s"}' "$layer" "$(tuninforge_layer_title "$layer")"
+    done < <(tuninforge_layers)
     printf '],"services":['
 
     # services array, in registry order.
-    forge_registry | awk -F'|' -v defaults="$defaults" '
+    tuninforge_registry | awk -F'|' -v defaults="$defaults" '
       function jstr(s,   r) { gsub(/\\/,"\\\\",s); gsub(/"/,"\\\"",s); return "\"" s "\"" }
       NF {
         if (NR>1 && printed) printf ",";
@@ -158,21 +158,21 @@ forge_registry_json() {
 }
 
 # Services pre-checked in the Advanced checklist (same core set).
-forge_default_checked() { forge_quickstart_defaults; }
+tuninforge_default_checked() { tuninforge_quickstart_defaults; }
 
 # --- Dependency resolution (pure, testable) ----------------------------------
-# forge_resolve_deps <name...> -> the transitive closure (inputs + all deps),
+# tuninforge_resolve_deps <name...> -> the transitive closure (inputs + all deps),
 # whitespace-normalized on one line. Order is not guaranteed to be topological;
-# use forge_install_order for that. Safe on bash 3.2.
-forge_resolve_deps() {
+# use tuninforge_install_order for that. Safe on bash 3.2.
+tuninforge_resolve_deps() {
   local queue="$*" seen="" name d
   while [ -n "$queue" ]; do
     # shellcheck disable=SC2086  # intentional word-splitting of the worklist.
     set -- $queue; name="$1"; shift; queue="$*"
     case " $seen " in *" $name "*) continue ;; esac
-    forge_is_service "$name" || continue
+    tuninforge_is_service "$name" || continue
     seen="$seen $name"
-    for d in $(forge_deps "$name"); do
+    for d in $(tuninforge_deps "$name"); do
       case " $seen $queue " in *" $d "*) ;; *) queue="$queue $d" ;; esac
     done
   done
@@ -181,11 +181,11 @@ forge_resolve_deps() {
   echo $seen
 }
 
-# forge_added_deps <selected...> -> only the deps that were pulled in but NOT
+# tuninforge_added_deps <selected...> -> only the deps that were pulled in but NOT
 # explicitly selected (for the "auto-checked X because Y needs it" note).
-forge_added_deps() {
+tuninforge_added_deps() {
   local selected="$*" resolved d out=""
-  resolved="$(forge_resolve_deps $selected)"
+  resolved="$(tuninforge_resolve_deps $selected)"
   for d in $resolved; do
     case " $selected " in *" $d "*) ;; *) out="$out $d" ;; esac
   done
@@ -193,52 +193,52 @@ forge_added_deps() {
   echo $out
 }
 
-# forge_dependents_of <name> among <candidates...> -> which candidates depend on
+# tuninforge_dependents_of <name> among <candidates...> -> which candidates depend on
 # <name> (used to warn when the user unchecks a needed dependency).
-forge_dependents_of() {
+tuninforge_dependents_of() {
   local target="$1"; shift
   local candidates="$*" c out=""
   for c in $candidates; do
-    case " $(forge_deps "$c") " in *" $target "*) out="$out $c" ;; esac
+    case " $(tuninforge_deps "$c") " in *" $target "*) out="$out $c" ;; esac
   done
   # shellcheck disable=SC2086
   echo $out
 }
 
-# forge_install_order <name...> -> the resolved dependency closure, emitted in
+# tuninforge_install_order <name...> -> the resolved dependency closure, emitted in
 # REGISTRY order. The registry is authored as a valid topological order (access
 # first; every dependency listed before its dependents), so filtering registry
 # order by the closure yields a correct install order independent of the order
 # the user selected services in. This also makes access-layer ordering
 # deterministic (tailscale before ssh-hardening) even though neither declares a
 # dependency on the other.
-forge_install_order() {
+tuninforge_install_order() {
   local resolved out="" svc
-  resolved=" $(forge_resolve_deps "$@") "
+  resolved=" $(tuninforge_resolve_deps "$@") "
   while IFS= read -r svc; do
     [[ -z "$svc" ]] && continue
     case "$resolved" in *" $svc "*) out="$out $svc" ;; esac
-  done < <(forge_all_services)
+  done < <(tuninforge_all_services)
   # shellcheck disable=SC2086
   echo $out
 }
 
 # --- Footprint math (pure, testable) -----------------------------------------
-# forge_sum_field <field-index> <name...> -> integer sum of that field.
-forge_sum_field() {
+# tuninforge_sum_field <field-index> <name...> -> integer sum of that field.
+tuninforge_sum_field() {
   local idx="$1"; shift
   local total=0 n v
   for n in "$@"; do
-    v="$(forge_field "$n" "$idx")"
+    v="$(tuninforge_field "$n" "$idx")"
     [[ "$v" =~ ^[0-9]+$ ]] && total=$((total + v))
   done
   echo "$total"
 }
-forge_total_ram()  { forge_sum_field 4 "$@"; }
-forge_total_disk() { forge_sum_field 5 "$@"; }
+tuninforge_total_ram()  { tuninforge_sum_field 4 "$@"; }
+tuninforge_total_disk() { tuninforge_sum_field 5 "$@"; }
 
-# forge_human_mb <mb> -> "512 MB" or "5.0 GB" for display.
-forge_human_mb() {
+# tuninforge_human_mb <mb> -> "512 MB" or "5.0 GB" for display.
+tuninforge_human_mb() {
   local mb="$1"
   if [ "$mb" -ge 1024 ]; then
     # One decimal place without bc (bash integer math).
@@ -249,9 +249,9 @@ forge_human_mb() {
   fi
 }
 
-# forge_is_heavy_disk <name> -> 0 if the service is a big/growing disk consumer
+# tuninforge_is_heavy_disk <name> -> 0 if the service is a big/growing disk consumer
 # (>= 1GB base), used to surface a disk warning on a constrained SSD.
-forge_is_heavy_disk() {
-  local d; d="$(forge_disk "$1")"
+tuninforge_is_heavy_disk() {
+  local d; d="$(tuninforge_disk "$1")"
   [[ "$d" =~ ^[0-9]+$ ]] && [ "$d" -ge 1024 ]
 }

@@ -1,8 +1,8 @@
 # modules/qdrant/docker-compose.yml
-# Qdrant for homelab-forge — vector database.
+# Qdrant for tuninforge — vector database.
 #
-# Networking: BOTH networks. forge_internal so in-cluster services (LiteLLM,
-# apps) reach it at http://qdrant:6333 privately; forge_public so Caddy can
+# Networking: BOTH networks. tuninforge_internal so in-cluster services (LiteLLM,
+# apps) reach it at http://qdrant:6333 privately; tuninforge_public so Caddy can
 # front its dashboard/API at a *.ts.net name. No ports published directly.
 #
 # Auth: QDRANT__SERVICE__API_KEY requires an api-key header on every request.
@@ -12,7 +12,7 @@
 # ⚠ HEALTHCHECK — deliberate design choice (Phase 1 lesson):
 #   The Qdrant image is a minimal binary image that may lack a shell, curl, or
 #   wget — an in-container CMD healthcheck could be impossible (exactly what bit
-#   Portainer). So this compose declares NO healthcheck. forge's health poller
+#   Portainer). So this compose declares NO healthcheck. tuninforge's health poller
 #   treats "running + stable" as healthy, and modules/qdrant/healthcheck.sh does
 #   a REAL HTTP readiness probe from a throwaway curl container on the shared
 #   network — independent of what tools Qdrant's image ships.
@@ -20,25 +20,25 @@
 services:
   qdrant:
     image: qdrant/qdrant:v1.18.1   # confirmed latest on Docker Hub (2026)
-    container_name: forge_qdrant
+    container_name: tuninforge_qdrant
     restart: unless-stopped
     environment:
       QDRANT__SERVICE__API_KEY: "${QDRANT_API_KEY:?QDRANT_API_KEY must be set (see .env)}"
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
-      - forge_internal
-      - forge_public
+      - tuninforge_internal
+      - tuninforge_public
     # No healthcheck: block on purpose — see the note above.
 
 volumes:
   qdrant_data:
-    name: forge_qdrant_data
+    name: tuninforge_qdrant_data
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
-  forge_public:
+    name: tuninforge_internal
+  tuninforge_public:
     external: true
-    name: forge_public
+    name: tuninforge_public

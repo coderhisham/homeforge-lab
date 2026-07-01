@@ -8,7 +8,7 @@ container's logs here, and you query them in Grafana. Uses **filesystem storage*
 
 ## Networking & safety
 
-- `forge_internal` only — Alloy pushes to it, Grafana reads it, both
+- `tuninforge_internal` only — Alloy pushes to it, Grafana reads it, both
   privately. No public UI (you view logs through Grafana).
 - **Not** auto-updated (stateful log store; no Watchtower label).
 
@@ -25,13 +25,13 @@ normal, not a failure.
 
 | Symptom | Cause / fix |
 |---|---|
-| `/ready` stuck at 503 | Still starting, or a config error. Check `docker logs forge_loki`. |
+| `/ready` stuck at 503 | Still starting, or a config error. Check `docker logs tuninforge_loki`. |
 | Config parse error | Loki does NOT expand `${ENV}` vars in its config unless started with `-config.expand-env=true`. Values in `loki-config.yaml` are literal — edit them directly. |
 | No logs appear in Grafana | Alloy isn't running or can't reach Loki. Check the alloy module. |
 | Disk filling | Retention is 168h (7d) in `loki-config.yaml`. Lower it or grow the volume. |
 
 ## Backup / restore
 
-`forge_loki_data` (chunks + index) is included in `scripts/backup.sh`. Log
+`tuninforge_loki_data` (chunks + index) is included in `scripts/backup.sh`. Log
 history is typically non-critical — exclude it if you want smaller backups. See
 [backup.md](backup.md).

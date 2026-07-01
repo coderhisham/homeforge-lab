@@ -1,13 +1,13 @@
-# homelab-forge configuration (example)
+# tuninforge configuration (example)
 #
-# Copy to forge.config.yaml and edit. forge.config.yaml is git-ignored because it
+# Copy to tuninforge.config.yaml and edit. tuninforge.config.yaml is git-ignored because it
 # may contain auth keys / tokens. All keys are OPTIONAL — anything omitted falls
 # back to interactive prompts or documented defaults.
 #
 # Non-interactive install:
-#   ./forge.sh install --config forge.config.yaml
+#   ./tuninforge.sh install --config tuninforge.config.yaml
 # or select on the CLI directly:
-#   ./forge.sh install --with caddy,portainer,postgres,redis
+#   ./tuninforge.sh install --with caddy,portainer,postgres,redis
 
 # --- Service selection -------------------------------------------------------
 # Explicit list of services to install. If present, the interactive menu is
@@ -29,7 +29,7 @@ access:
     # printed URL on headless boxes). NEVER commit a real key.
     auth_key: ""
     # SSH access model: "tailscale-ssh" (Tailscale-managed) or "sshd" (traditional
-    # key auth). If omitted, forge asks explicitly.
+    # key auth). If omitted, tuninforge asks explicitly.
     ssh_mode: ""
   ssh_hardening:
     # PermitRootLogin: "no" (default) or "prohibit-password" (root key recovery).

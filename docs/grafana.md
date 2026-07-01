@@ -10,7 +10,7 @@ files, with no click-through setup.
 ## What's auto-provisioned
 
 - **Datasources** (`provisioning/datasources/datasources.yaml`): Prometheus
-  (uid `forge-prometheus`, default) and Loki (uid `forge-loki`).
+  (uid `tuninforge-prometheus`, default) and Loki (uid `tuninforge-loki`).
 - **Dashboard** (`dashboards/homelab-overview.json` via
   `provisioning/dashboards/dashboards.yaml`): "Homelab Overview" with host CPU,
   host memory, per-container memory (cAdvisor), and a live container-logs panel
@@ -28,7 +28,7 @@ files, with no click-through setup.
 
 ```bash
 ./modules/grafana/healthcheck.sh    # PASS = /api/health 2xx
-# Then browse (over Tailscale): log in as admin, open the "homelab-forge"
+# Then browse (over Tailscale): log in as admin, open the "tuninforge"
 # folder → "Homelab Overview". Panels should show data if Prometheus/Loki are up.
 ```
 
@@ -43,13 +43,13 @@ files, with no click-through setup.
 | Symptom | Cause / fix |
 |---|---|
 | Login fails | Use the password in `modules/grafana/.env`. |
-| "datasource not found" on panels | uid mismatch between dashboard JSON and `datasources.yaml`. Both must be `forge-prometheus` / `forge-loki`. |
+| "datasource not found" on panels | uid mismatch between dashboard JSON and `datasources.yaml`. Both must be `tuninforge-prometheus` / `tuninforge-loki`. |
 | Panels empty but datasources OK | Prometheus/Loki have no data yet, or the query needs adjusting for your metrics. |
 | Wrong redirect URLs behind Caddy | Set `GRAFANA_ROOT_URL` to the public `*.ts.net` URL and re-deploy. |
 
 ## Backup / restore
 
-`forge_grafana_data` holds users, preferences, and any dashboards you create in
+`tuninforge_grafana_data` holds users, preferences, and any dashboards you create in
 the UI. Provisioned datasources + the starter dashboard come from files (in
 git), so they're recreated on deploy regardless. Included in
 `scripts/backup.sh`. See [backup.md](backup.md).

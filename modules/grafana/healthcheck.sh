@@ -6,4 +6,4 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../lib/probe.sh
 source "$DIR/../../lib/probe.sh"
-forge_http_ready grafana forge_grafana forge_internal "http://forge_grafana:3000/api/health"
+tuninforge_http_ready grafana tuninforge_grafana tuninforge_internal "http://tuninforge_grafana:3000/api/health"

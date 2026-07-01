@@ -1,11 +1,11 @@
 # modules/loki/docker-compose.yml
-# Loki for homelab-forge — log aggregation (the "Prometheus for logs").
+# Loki for tuninforge — log aggregation (the "Prometheus for logs").
 #
 # Storage: filesystem (local volume) — the simplest, dependency-free setup for a
 # single homelab box. No S3/object store needed. Logs are pushed here by
 # Grafana Alloy and queried in Grafana.
 #
-# Networking: forge_internal — Alloy ships to it and Grafana reads it, both
+# Networking: tuninforge_internal — Alloy ships to it and Grafana reads it, both
 # privately. Not Caddy-fronted (no public UI; you view logs through Grafana).
 #
 # Stateful (log store grows): NO watchtower label — update deliberately.
@@ -13,23 +13,23 @@
 services:
   loki:
     image: grafana/loki:3.5.0   # VM-confirmed pull (2026)
-    container_name: forge_loki
+    container_name: tuninforge_loki
     restart: unless-stopped
     command: ["-config.file=/etc/loki/loki-config.yaml"]
     volumes:
       - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - loki_data:/loki
     networks:
-      - forge_internal
+      - tuninforge_internal
     # No in-container healthcheck: the loki image is distroless (no shell/wget).
-    # forge liveness fallback + healthcheck.sh (curl-container /ready probe)
+    # tuninforge liveness fallback + healthcheck.sh (curl-container /ready probe)
     # verify it.
 
 volumes:
   loki_data:
-    name: forge_loki_data
+    name: tuninforge_loki_data
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
+    name: tuninforge_internal

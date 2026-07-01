@@ -1,10 +1,10 @@
 # modules/watchtower/docker-compose.yml
-# Watchtower for homelab-forge — opt-in automatic container updates.
+# Watchtower for tuninforge — opt-in automatic container updates.
 #
 # ⚠ SCOPING (the whole point): WATCHTOWER_LABEL_ENABLE=true means Watchtower
 # ONLY updates containers that explicitly carry the label
 #   com.centurylinklabs.watchtower.enable=true
-# Every stateless service in forge sets that label (Caddy, Portainer, n8n,
+# Every stateless service in tuninforge sets that label (Caddy, Portainer, n8n,
 # Ollama, LiteLLM, Alloy, Grafana). STATEFUL services deliberately OMIT it
 # (Postgres, Redis, MinIO, Qdrant, Prometheus, Loki) so their data is never put
 # at risk by an unattended image bump — those you update manually, after a
@@ -16,7 +16,7 @@
 services:
   watchtower:
     image: containrrr/watchtower:1.7.1
-    container_name: forge_watchtower
+    container_name: tuninforge_watchtower
     restart: unless-stopped
     environment:
       # The scoping switch: only labeled containers are considered.
@@ -43,7 +43,7 @@ services:
     # No network + no ports: it talks to Docker via the socket only.
     # No compose healthcheck declared here — but the containrrr/watchtower image
     # ships its OWN HEALTHCHECK, which correctly reports unhealthy if it can't
-    # reach the Docker daemon (see DOCKER_API_VERSION above). forge honors that.
+    # reach the Docker daemon (see DOCKER_API_VERSION above). tuninforge honors that.
     # healthcheck.sh additionally checks run-state.
 
 networks: {}

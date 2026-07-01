@@ -3,8 +3,8 @@
 ## What it does
 
 Installs Docker Engine and the Compose plugin — the container runtime every
-homelab-forge service runs on. It is a **prerequisite**, not a selectable
-service: `forge.sh` runs it automatically before deploying any stack module if
+tuninforge service runs on. It is a **prerequisite**, not a selectable
+service: `tuninforge.sh` runs it automatically before deploying any stack module if
 Docker isn't already present and working.
 
 ## How it installs
@@ -30,7 +30,7 @@ skips reinstalling.
 ## ⚠ Group membership requires a re-login
 
 After adding you to the `docker` group, the change **only takes effect on your
-next login**. Until then, `docker` needs `sudo`. homelab-forge handles this
+next login**. Until then, `docker` needs `sudo`. tuninforge handles this
 automatically (it detects whether it can reach Docker directly and uses `sudo`
 when needed), but for your own shell:
 
@@ -66,6 +66,6 @@ without reinstalling or re-adding the group.
 
 ## Backup / restore
 
-Docker itself is stateless from forge's perspective — your data lives in named
+Docker itself is stateless from tuninforge's perspective — your data lives in named
 volumes managed per service (backed up via the Restic setup). Reinstalling
 Docker does not touch existing volumes.

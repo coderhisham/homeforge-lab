@@ -3,7 +3,7 @@
 ## What it does
 
 Watches your running containers and automatically updates the ones you've opted
-in, pulling new images and recreating the container. In homelab-forge it is
+in, pulling new images and recreating the container. In tuninforge it is
 **scoped by label** so it never touches data you can't afford to lose to an
 unattended upgrade.
 
@@ -16,7 +16,7 @@ considers containers carrying:
 com.centurylinklabs.watchtower.enable=true
 ```
 
-homelab-forge sets that label on **stateless** services and deliberately omits
+tuninforge sets that label on **stateless** services and deliberately omits
 it on **stateful** ones:
 
 | Auto-updated (labeled) | Pinned — manual update only (no label) |
@@ -31,7 +31,7 @@ and re-deploying.
 
 ```bash
 ./modules/watchtower/healthcheck.sh    # PASS = running (it's a poller; no HTTP port)
-docker logs forge_watchtower | tail    # shows what it's watching / last check
+docker logs tuninforge_watchtower | tail    # shows what it's watching / last check
 ```
 
 To confirm scoping is working, the logs list only labeled containers as
@@ -47,7 +47,7 @@ To confirm scoping is working, the logs list only labeled containers as
 
 | Symptom | Cause / fix |
 |---|---|
-| Container restarting | Can't reach the Docker socket. Confirm the socket mount + daemon. `docker logs forge_watchtower`. |
+| Container restarting | Can't reach the Docker socket. Confirm the socket mount + daemon. `docker logs tuninforge_watchtower`. |
 | A service didn't auto-update | It has no `watchtower.enable=true` label (by design if stateful), or no newer image exists. |
 | A stateful service DID update | It shouldn't — verify its compose has no watchtower label. Report it. |
 | Update broke a service | Pin that service's image tag to the previous version and re-deploy; consider removing its label. |

@@ -3,7 +3,7 @@
 ## What it does
 
 Installs [Tailscale](https://tailscale.com) and joins this machine to your
-tailnet, giving every homelab-forge service a private, encrypted network path
+tailnet, giving every tuninforge service a private, encrypted network path
 without opening any inbound ports to the public internet. Tailscale also
 provides MagicDNS, which the Caddy module later uses to obtain real HTTPS
 certificates for a `*.ts.net` hostname.
@@ -32,15 +32,15 @@ reachable before anything else is exposed.
 ## How to run it
 
 ```bash
-./forge.sh install --with tailscale
+./tuninforge.sh install --with tailscale
 # preview without changing anything:
-./forge.sh install --with tailscale --dry-run
+./tuninforge.sh install --with tailscale --dry-run
 ```
 
 Non-interactive (CI / cloud-init), supply a key:
 
 ```bash
-TS_AUTHKEY="tskey-auth-..." TS_SSH_MODE="sshd" ./forge.sh install --with tailscale --yes
+TS_AUTHKEY="tskey-auth-..." TS_SSH_MODE="sshd" ./tuninforge.sh install --with tailscale --yes
 ```
 
 ## How to verify

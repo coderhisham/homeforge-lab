@@ -24,13 +24,13 @@ on the box first (the access layer handles that).
 
 ## How it works
 
-- The site address in the `Caddyfile` is `{$FORGE_TS_HOSTNAME}` — your box's
-  MagicDNS name, which `forge.sh` detects from `tailscale status` and passes in.
+- The site address in the `Caddyfile` is `{$TUNINFORGE_TS_HOSTNAME}` — your box's
+  MagicDNS name, which `tuninforge.sh` detects from `tailscale status` and passes in.
 - The compose file mounts `/var/run/tailscale/tailscaled.sock` into the
   container. Caddy (running as root in its image) uses it to fetch and renew the
   certificate. Renewal is automatic.
-- Caddy joins the `forge_public` Docker network; proxied services share it.
-- Certs and state persist in the `forge_caddy_data` volume — don't delete it or
+- Caddy joins the `tuninforge_public` Docker network; proxied services share it.
+- Certs and state persist in the `tuninforge_caddy_data` volume — don't delete it or
   Caddy re-requests certificates on next start.
 
 ## How to verify
@@ -39,13 +39,13 @@ on the box first (the access layer handles that).
 # Container healthy?
 ./modules/caddy/healthcheck.sh
 # or
-docker ps --filter name=forge_caddy
+docker ps --filter name=tuninforge_caddy
 
 # From a device on your tailnet:
 curl -sS https://<your-host>.<tailnet>.ts.net/healthz    # -> ok
 ```
 
-`forge.sh status` also reports Caddy's health.
+`tuninforge.sh status` also reports Caddy's health.
 
 ## Common failure modes
 
@@ -65,11 +65,11 @@ a version, change the image tag in `docker-compose.yml`.
 
 ## Backup / restore
 
-The only state is the `forge_caddy_data` volume (certificates + config). Back it
+The only state is the `tuninforge_caddy_data` volume (certificates + config). Back it
 up with the stack's Restic setup, or manually:
 
 ```bash
-docker run --rm -v forge_caddy_data:/data -v "$PWD":/backup alpine \
+docker run --rm -v tuninforge_caddy_data:/data -v "$PWD":/backup alpine \
   tar czf /backup/caddy_data.tgz -C /data .
 ```
 

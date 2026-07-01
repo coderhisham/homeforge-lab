@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # lib/log.sh — shared logging, warnings, dry-run, and confirmation helpers.
 #
-# Source this from forge.sh and every module:
-#   source "${FORGE_LIB:-lib}/log.sh"
+# Source this from tuninforge.sh and every module:
+#   source "${TUNINFORGE_LIB:-lib}/log.sh"
 #
 # Design notes:
 # - This file only DEFINES functions and a few globals. It never calls `set -e`
@@ -13,20 +13,20 @@
 #   output on STDOUT stays uncontaminated and pipeable.
 
 # Guard against double-sourcing.
-[[ -n "${_FORGE_LOG_SH:-}" ]] && return 0
-_FORGE_LOG_SH=1
+[[ -n "${_TUNINFORGE_LOG_SH:-}" ]] && return 0
+_TUNINFORGE_LOG_SH=1
 
 # --- Global toggles ----------------------------------------------------------
 # DRY_RUN=1        -> run_cmd prints commands instead of executing them.
-# FORGE_ASSUME_YES=1 -> confirm() returns success without prompting (for
+# TUNINFORGE_ASSUME_YES=1 -> confirm() returns success without prompting (for
 #                       --yes / non-interactive installs). Never auto-assume yes
 #                       for the SSH-hardening lockout confirmation; that path
 #                       gates on interactivity separately.
 : "${DRY_RUN:=0}"
-: "${FORGE_ASSUME_YES:=0}"
+: "${TUNINFORGE_ASSUME_YES:=0}"
 
 # --- Color setup -------------------------------------------------------------
-_forge_init_colors() {
+_tuninforge_init_colors() {
   if [[ -n "${NO_COLOR:-}" ]] || [[ "${TERM:-}" == "dumb" ]] || [[ ! -t 2 ]]; then
     C_RESET='' C_BOLD='' C_DIM='' C_RED='' C_GREEN='' C_YELLOW='' C_BLUE='' C_CYAN=''
     return
@@ -42,14 +42,14 @@ _forge_init_colors() {
     C_BLUE=$'\033[34m'; C_CYAN=$'\033[36m'
   fi
 }
-_forge_init_colors
+_tuninforge_init_colors
 
 # --- Core log levels (all to stderr) -----------------------------------------
 log_info()  { printf '%s\n' "${C_BLUE}•${C_RESET} $*" >&2; }
 log_ok()    { printf '%s\n' "${C_GREEN}✓${C_RESET} $*" >&2; }
 log_warn()  { printf '%s\n' "${C_YELLOW}!${C_RESET} ${C_YELLOW}$*${C_RESET}" >&2; }
 log_error() { printf '%s\n' "${C_RED}✗${C_RESET} ${C_RED}$*${C_RESET}" >&2; }
-log_debug() { [[ "${FORGE_DEBUG:-0}" == "1" ]] && printf '%s\n' "${C_DIM}  $*${C_RESET}" >&2; return 0; }
+log_debug() { [[ "${TUNINFORGE_DEBUG:-0}" == "1" ]] && printf '%s\n' "${C_DIM}  $*${C_RESET}" >&2; return 0; }
 
 # log_step: a titled section header, e.g. before each module or hardening step.
 log_step() { printf '\n%s\n' "${C_BOLD}${C_CYAN}==> $*${C_RESET}" >&2; }
@@ -100,13 +100,13 @@ run_cmd_sudo() {
 # --- Confirmation prompt -----------------------------------------------------
 # confirm "Question?"            -> default No
 # confirm "Question?" yes        -> default Yes
-# Returns 0 for yes, 1 for no. Honors FORGE_ASSUME_YES=1 (returns 0 without
-# prompting). If stdin is not a TTY and FORGE_ASSUME_YES is unset, returns 1
+# Returns 0 for yes, 1 for no. Honors TUNINFORGE_ASSUME_YES=1 (returns 0 without
+# prompting). If stdin is not a TTY and TUNINFORGE_ASSUME_YES is unset, returns 1
 # (safe default) rather than hanging.
 confirm() {
   local prompt="$1" default="${2:-no}" reply hint
 
-  if [[ "$FORGE_ASSUME_YES" == "1" ]]; then
+  if [[ "$TUNINFORGE_ASSUME_YES" == "1" ]]; then
     log_debug "auto-confirming (--yes): $prompt"
     return 0
   fi
@@ -130,7 +130,7 @@ confirm() {
 }
 
 # confirm_typed: require the user to type an exact phrase (stronger than y/n),
-# for genuinely dangerous actions. Never auto-confirmed by FORGE_ASSUME_YES.
+# for genuinely dangerous actions. Never auto-confirmed by TUNINFORGE_ASSUME_YES.
 # Usage: confirm_typed "Type the service name to confirm deletion" "qdrant"
 confirm_typed() {
   local prompt="$1" expected="$2" reply

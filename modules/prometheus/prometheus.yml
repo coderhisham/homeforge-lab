@@ -1,4 +1,4 @@
-# modules/prometheus/prometheus.yml — homelab-forge scrape config.
+# modules/prometheus/prometheus.yml — tuninforge scrape config.
 #
 # Active targets give real box-wide observability out of the box. Commented
 # blocks are ready-to-enable stubs for per-service exporters you add later.
@@ -7,7 +7,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    monitor: homelab-forge
+    monitor: tuninforge
 
 scrape_configs:
   # Prometheus itself.
@@ -29,11 +29,11 @@ scrape_configs:
   # to 127.0.0.1:2019 (loopback-only, to fix an IPv6 healthcheck issue), so it
   # is NOT reachable from Prometheus over the network. To scrape Caddy, expose
   # its metrics on a network address first (add `metrics` to a site block on a
-  # dedicated port, or bind admin to 0.0.0.0 on forge_internal), then enable:
+  # dedicated port, or bind admin to 0.0.0.0 on tuninforge_internal), then enable:
   # - job_name: caddy
   #   metrics_path: /metrics
   #   static_configs:
-  #     - targets: ["forge_caddy:2019"]
+  #     - targets: ["tuninforge_caddy:2019"]
 
   # --- Per-service exporter stubs (enable when you add the exporter) ---
   # Postgres: run a postgres_exporter sidecar, then:

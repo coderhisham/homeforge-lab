@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-CONTAINER="forge_watchtower"
+CONTAINER="tuninforge_watchtower"
 
 _dk() {
   if docker info >/dev/null 2>&1; then docker "$@";

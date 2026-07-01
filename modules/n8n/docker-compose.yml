@@ -1,15 +1,15 @@
 # modules/n8n/docker-compose.yml
-# n8n for homelab-forge — workflow automation.
+# n8n for tuninforge — workflow automation.
 #
 # Dependencies (auto-selected by the menu's dependency check): Postgres (stores
 # all workflows + encrypted credentials — the real persistence) and Redis (wired
 # for queue mode; see docs/n8n.md). The connection secrets are NOT duplicated
 # here: modules/n8n/setup.sh reads Postgres's and Redis's generated passwords via
-# forge_get_env and writes them into modules/n8n/.env before this starts, and it
+# tuninforge_get_env and writes them into modules/n8n/.env before this starts, and it
 # ensures the 'n8n' database exists in the already-running Postgres.
 #
-# Networking: BOTH networks. forge_internal to reach postgres/redis privately;
-# forge_public so Caddy fronts the UI at a *.ts.net name. No ports published.
+# Networking: BOTH networks. tuninforge_internal to reach postgres/redis privately;
+# tuninforge_public so Caddy fronts the UI at a *.ts.net name. No ports published.
 #
 # ⚠ N8N_ENCRYPTION_KEY is critical: it encrypts stored credentials. If it is
 # lost or changed, existing saved credentials become unreadable. It is generated
@@ -18,7 +18,7 @@
 services:
   n8n:
     image: n8nio/n8n:1.118.1   # pinned for reproducibility (stable line; "latest" is not stable per n8n)
-    container_name: forge_n8n
+    container_name: tuninforge_n8n
     restart: unless-stopped
     environment:
       # --- Database (Postgres) ---
@@ -26,7 +26,7 @@ services:
       DB_POSTGRESDB_HOST: postgres
       DB_POSTGRESDB_PORT: "5432"
       DB_POSTGRESDB_DATABASE: "${N8N_DB_NAME:-n8n}"
-      DB_POSTGRESDB_USER: "${N8N_DB_USER:-forge}"
+      DB_POSTGRESDB_USER: "${N8N_DB_USER:-tuninforge}"
       DB_POSTGRESDB_PASSWORD: "${N8N_DB_PASSWORD:?N8N_DB_PASSWORD must be set (setup.sh fills it from Postgres)}"
       # --- Credential encryption (critical — see note above) ---
       N8N_ENCRYPTION_KEY: "${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY must be set (see .env)}"
@@ -43,8 +43,8 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
-      - forge_internal
-      - forge_public
+      - tuninforge_internal
+      - tuninforge_public
     labels:
       com.centurylinklabs.watchtower.enable: "true"
     healthcheck:
@@ -58,12 +58,12 @@ services:
 
 volumes:
   n8n_data:
-    name: forge_n8n_data
+    name: tuninforge_n8n_data
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
-  forge_public:
+    name: tuninforge_internal
+  tuninforge_public:
     external: true
-    name: forge_public
+    name: tuninforge_public

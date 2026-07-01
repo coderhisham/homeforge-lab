@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/restore.sh — restore the homelab-forge data layer from a Restic snapshot.
+# scripts/restore.sh — restore the tuninforge data layer from a Restic snapshot.
 #
 # This is the counterpart to scripts/backup.sh and it is DESTRUCTIVE: it stops
 # the affected services, replaces volume contents, and re-imports the Postgres
@@ -16,14 +16,14 @@
 
 set -euo pipefail
 
-FORGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TUNINFORGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/log.sh
-source "$FORGE_ROOT/lib/log.sh"
+source "$TUNINFORGE_ROOT/lib/log.sh"
 
 : "${DRY_RUN:=0}"
-FORGE_BACKUP_REPO="${FORGE_BACKUP_REPO:-/var/lib/forge/restic}"
-FORGE_RESTIC_PASSWORD_FILE="${FORGE_RESTIC_PASSWORD_FILE:-/var/lib/forge/restic.pass}"
-RESTORE_SCRATCH="${FORGE_RESTORE_SCRATCH:-/var/lib/forge/restore-scratch}"
+TUNINFORGE_BACKUP_REPO="${TUNINFORGE_BACKUP_REPO:-/var/lib/tuninforge/restic}"
+TUNINFORGE_RESTIC_PASSWORD_FILE="${TUNINFORGE_RESTIC_PASSWORD_FILE:-/var/lib/tuninforge/restic.pass}"
+RESTORE_SCRATCH="${TUNINFORGE_RESTORE_SCRATCH:-/var/lib/tuninforge/restore-scratch}"
 HELPER_IMAGE="alpine:3.20"
 
 SNAPSHOT="latest"
@@ -54,16 +54,16 @@ require_root() {
 }
 
 setup_repo_env() {
-  [[ -n "${RESTIC_REPOSITORY:-}" ]] || export RESTIC_REPOSITORY="$FORGE_BACKUP_REPO"
+  [[ -n "${RESTIC_REPOSITORY:-}" ]] || export RESTIC_REPOSITORY="$TUNINFORGE_BACKUP_REPO"
   if [[ -z "${RESTIC_PASSWORD:-}" && -z "${RESTIC_PASSWORD_FILE:-}" ]]; then
-    [[ -f "$FORGE_RESTIC_PASSWORD_FILE" ]] || log_die "No Restic password file at $FORGE_RESTIC_PASSWORD_FILE and none in env. Cannot decrypt."
-    export RESTIC_PASSWORD_FILE="$FORGE_RESTIC_PASSWORD_FILE"
+    [[ -f "$TUNINFORGE_RESTIC_PASSWORD_FILE" ]] || log_die "No Restic password file at $TUNINFORGE_RESTIC_PASSWORD_FILE and none in env. Cannot decrypt."
+    export RESTIC_PASSWORD_FILE="$TUNINFORGE_RESTIC_PASSWORD_FILE"
   fi
   command -v restic >/dev/null 2>&1 || log_die "restic not installed."
   log_info "Restic repo: $RESTIC_REPOSITORY"
 }
 
-list_snapshots() { run_cmd restic snapshots --tag forge; }
+list_snapshots() { run_cmd restic snapshots --tag tuninforge; }
 
 # Restore the snapshot's staging tree into a scratch dir on the host.
 restore_to_scratch() {
@@ -79,7 +79,7 @@ restore_to_scratch() {
 }
 
 # Find the staging root inside the scratch tree (restic recreates the absolute
-# path that was backed up, e.g. <scratch>/var/lib/forge/staging/<ts>).
+# path that was backed up, e.g. <scratch>/var/lib/tuninforge/staging/<ts>).
 find_staging_root() {
   # The deepest dir containing a 'volumes' subdir is our staging root.
   local hit
@@ -106,7 +106,7 @@ restore_volume() {
 }
 
 main() {
-  log_step "homelab-forge restore (Restic)"
+  log_step "tuninforge restore (Restic)"
   require_root
   setup_repo_env
 
@@ -138,8 +138,8 @@ main() {
   log_info "Stopping data-layer containers before volume swap…"
   local s
   for s in $services; do
-    if _dk inspect "forge_$s" >/dev/null 2>&1; then
-      run_cmd _dk stop "forge_$s" >/dev/null 2>&1 || true
+    if _dk inspect "tuninforge_$s" >/dev/null 2>&1; then
+      run_cmd _dk stop "tuninforge_$s" >/dev/null 2>&1 || true
     fi
   done
 
@@ -148,13 +148,13 @@ main() {
   # SQL dump below (we must NOT apply both, or rows get duplicated).
   local pg_volume_restored=0
   if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would restore each forge_*_data.tar from $staging/volumes/ into its volume."
+    log_info "[dry-run] would restore each tuninforge_*_data.tar from $staging/volumes/ into its volume."
   else
     local tar vol
     for tar in "$staging"/volumes/*.tar; do
       [[ -e "$tar" ]] || { log_warn "No volume tarballs found in snapshot."; break; }
       vol="$(basename "$tar" .tar)"
-      [[ "$vol" == "forge_postgres_data" ]] && pg_volume_restored=1
+      [[ "$vol" == "tuninforge_postgres_data" ]] && pg_volume_restored=1
       restore_volume "$vol" "$tar"
     done
   fi
@@ -162,8 +162,8 @@ main() {
   # Restart services.
   log_info "Restarting data-layer containers…"
   for s in $services; do
-    if _dk inspect "forge_$s" >/dev/null 2>&1; then
-      run_cmd _dk start "forge_$s" >/dev/null 2>&1 || true
+    if _dk inspect "tuninforge_$s" >/dev/null 2>&1; then
+      run_cmd _dk start "tuninforge_$s" >/dev/null 2>&1 || true
     fi
   done
 
@@ -178,12 +178,12 @@ main() {
     log_info "[dry-run] Postgres: would use the volume tar if present, else re-import all.sql."
   elif [[ "$pg_volume_restored" == "1" ]]; then
     log_info "Postgres restored from its data volume; skipping SQL dump to avoid duplicate rows."
-  elif [[ -f "$staging/postgres/all.sql" ]] && _dk inspect forge_postgres >/dev/null 2>&1; then
+  elif [[ -f "$staging/postgres/all.sql" ]] && _dk inspect tuninforge_postgres >/dev/null 2>&1; then
     log_info "No Postgres volume in snapshot; re-importing logical dump…"
     # Wait briefly for postgres to accept connections after restart.
     local i
-    for i in $(seq 1 30); do _dk exec forge_postgres pg_isready -q 2>/dev/null && break; sleep 2; done
-    sudo cat "$staging/postgres/all.sql" | _dk exec -i forge_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+    for i in $(seq 1 30); do _dk exec tuninforge_postgres pg_isready -q 2>/dev/null && break; sleep 2; done
+    sudo cat "$staging/postgres/all.sql" | _dk exec -i tuninforge_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
       || log_warn "Postgres dump re-import reported issues; check logs."
   fi
 

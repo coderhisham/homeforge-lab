@@ -1,5 +1,5 @@
 # modules/caddy/docker-compose.yml
-# Reverse proxy + automatic TLS for homelab-forge.
+# Reverse proxy + automatic TLS for tuninforge.
 #
 # TLS: Caddy 2.5+ obtains HTTPS certificates for the host's *.ts.net MagicDNS
 # name directly from the local tailscaled — no ACME, no open ports, no public
@@ -7,14 +7,14 @@
 # (Caddy runs as root here, so TS_PERMIT_CERT_UID is unnecessary). Requires
 # MagicDNS + HTTPS certificates enabled in the tailnet admin console.
 #
-# Networking: Caddy joins forge_public and is the single entrypoint other
+# Networking: Caddy joins tuninforge_public and is the single entrypoint other
 # Caddy-fronted services are reverse-proxied through. Downstream modules append
 # their own site blocks under conf.d/ (mounted below) in later phases.
 
 services:
   caddy:
     image: caddy:2-alpine
-    container_name: forge_caddy
+    container_name: tuninforge_caddy
     restart: unless-stopped
     # Ports are published so the box is reachable at its Tailscale IP. On a
     # tailnet-only homelab this is the intent; see docs for locking 80/443 to
@@ -29,8 +29,8 @@ services:
       # colon) substitutes ":80" when the var is unset OR empty, so Caddy always
       # receives a VALID site address — a real hostname (auto-TLS) or ":80"
       # (plain HTTP). This prevents the empty-address parse error that made Caddy
-      # crash-loop. forge.sh fills the hostname from `tailscale status`.
-      FORGE_TS_HOSTNAME: "${FORGE_TS_HOSTNAME:-:80}"
+      # crash-loop. tuninforge.sh fills the hostname from `tailscale status`.
+      TUNINFORGE_TS_HOSTNAME: "${TUNINFORGE_TS_HOSTNAME:-:80}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./conf.d:/etc/caddy/conf.d:ro          # per-service site blocks (later phases)
@@ -39,7 +39,7 @@ services:
       # tailscaled socket: lets Caddy fetch the *.ts.net certificate.
       - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
     networks:
-      - forge_public
+      - tuninforge_public
     labels:
       # Opt in to Watchtower auto-updates (Caddy is safe to auto-update; it is
       # not a stateful data service). Stateful services omit this label.
@@ -57,11 +57,11 @@ services:
 
 volumes:
   caddy_data:
-    name: forge_caddy_data
+    name: tuninforge_caddy_data
   caddy_config:
-    name: forge_caddy_config
+    name: tuninforge_caddy_config
 
 networks:
-  forge_public:
+  tuninforge_public:
     external: true
-    name: forge_public
+    name: tuninforge_public

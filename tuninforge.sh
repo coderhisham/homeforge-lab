@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# forge.sh — homelab-forge entrypoint.
+# tuninforge.sh — tuninforge entrypoint.
 #
-#   ./forge.sh install [--with a,b,c] [--config FILE] [--dry-run] [--yes]
-#   ./forge.sh add <service>...
-#   ./forge.sh remove <service>... [--dry-run] [--purge-volumes]
-#   ./forge.sh status
-#   ./forge.sh help
+#   ./tuninforge.sh install [--with a,b,c] [--config FILE] [--dry-run] [--yes]
+#   ./tuninforge.sh add <service>...
+#   ./tuninforge.sh remove <service>... [--dry-run] [--purge-volumes]
+#   ./tuninforge.sh status
+#   ./tuninforge.sh help
 #
 # Phase 0 implements the ACCESS LAYER (tailscale, ssh-hardening) end to end.
 # The service-stack selection menu + data/AI/observability modules arrive in
-# later phases; forge.sh dispatches to them but they are stubbed for now.
+# later phases; tuninforge.sh dispatches to them but they are stubbed for now.
 
 set -euo pipefail
 
@@ -23,32 +23,32 @@ _resolve_root() {
   done
   cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd
 }
-FORGE_ROOT="$(_resolve_root)"
-export FORGE_ROOT
-export FORGE_LIB="$FORGE_ROOT/lib"
-export FORGE_MODULES="$FORGE_ROOT/modules"
+TUNINFORGE_ROOT="$(_resolve_root)"
+export TUNINFORGE_ROOT
+export TUNINFORGE_LIB="$TUNINFORGE_ROOT/lib"
+export TUNINFORGE_MODULES="$TUNINFORGE_ROOT/modules"
 
 # shellcheck source=lib/log.sh
-source "$FORGE_LIB/log.sh"
+source "$TUNINFORGE_LIB/log.sh"
 # shellcheck source=lib/deps.sh
-source "$FORGE_LIB/deps.sh"
+source "$TUNINFORGE_LIB/deps.sh"
 # shellcheck source=lib/secrets.sh
-source "$FORGE_LIB/secrets.sh"
+source "$TUNINFORGE_LIB/secrets.sh"
 # shellcheck source=lib/env.sh
-source "$FORGE_LIB/env.sh"
+source "$TUNINFORGE_LIB/env.sh"
 # shellcheck source=lib/network.sh
-source "$FORGE_LIB/network.sh"
+source "$TUNINFORGE_LIB/network.sh"
 # shellcheck source=lib/health.sh
-source "$FORGE_LIB/health.sh"
+source "$TUNINFORGE_LIB/health.sh"
 # shellcheck source=lib/compose.sh
-source "$FORGE_LIB/compose.sh"
+source "$TUNINFORGE_LIB/compose.sh"
 # shellcheck source=lib/tui.sh
-source "$FORGE_LIB/tui.sh"
+source "$TUNINFORGE_LIB/tui.sh"
 
 # --- Global flag state (exported so modules inherit) -------------------------
 export DRY_RUN="${DRY_RUN:-0}"
-export FORGE_ASSUME_YES="${FORGE_ASSUME_YES:-0}"
-export FORGE_DEBUG="${FORGE_DEBUG:-0}"
+export TUNINFORGE_ASSUME_YES="${TUNINFORGE_ASSUME_YES:-0}"
+export TUNINFORGE_DEBUG="${TUNINFORGE_DEBUG:-0}"
 I_UNDERSTAND_THE_RISK=0
 CONFIG_FILE=""
 WITH_SERVICES=""          # comma-separated, from --with
@@ -56,10 +56,10 @@ PURGE_VOLUMES=0
 
 usage() {
   cat >&2 <<'EOF'
-homelab-forge — modular self-hosted stack installer
+tuninforge — modular self-hosted stack installer
 
 USAGE:
-  ./forge.sh <command> [options]
+  ./tuninforge.sh <command> [options]
 
 COMMANDS:
   install              Select and install services (interactive menu by default)
@@ -81,11 +81,11 @@ GLOBAL OPTIONS:
   -h, --help           Show this help.
 
 EXAMPLES:
-  ./forge.sh install
-  ./forge.sh install --with tailscale,ssh-hardening
-  ./forge.sh install --with caddy,portainer --yes
-  ./forge.sh add qdrant
-  ./forge.sh remove qdrant --dry-run
+  ./tuninforge.sh install
+  ./tuninforge.sh install --with tailscale,ssh-hardening
+  ./tuninforge.sh install --with caddy,portainer --yes
+  ./tuninforge.sh add qdrant
+  ./tuninforge.sh remove qdrant --dry-run
 EOF
 }
 
@@ -103,10 +103,10 @@ while [[ $# -gt 0 ]]; do
     --config)            CONFIG_FILE="${2:-}"; shift 2 ;;
     --config=*)          CONFIG_FILE="${1#*=}"; shift ;;
     --dry-run)           DRY_RUN=1; export DRY_RUN; shift ;;
-    -y|--yes)            FORGE_ASSUME_YES=1; export FORGE_ASSUME_YES; shift ;;
+    -y|--yes)            TUNINFORGE_ASSUME_YES=1; export TUNINFORGE_ASSUME_YES; shift ;;
     --i-understand-the-risk) I_UNDERSTAND_THE_RISK=1; shift ;;
     --purge-volumes)     PURGE_VOLUMES=1; shift ;;
-    --debug)             FORGE_DEBUG=1; export FORGE_DEBUG; shift ;;
+    --debug)             TUNINFORGE_DEBUG=1; export TUNINFORGE_DEBUG; shift ;;
     -h|--help)           usage; exit 0 ;;
     --)                  shift; while [[ $# -gt 0 ]]; do POSITIONAL+=("$1"); shift; done ;;
     -*)                  log_error "Unknown option: $1"; usage; exit 1 ;;
@@ -121,7 +121,7 @@ with_list() { [[ -n "$WITH_SERVICES" ]] && tr ',' '\n' <<<"$WITH_SERVICES" | sed
 # --- Preconditions -----------------------------------------------------------
 require_linux() {
   if [[ "$(uname -s)" != "Linux" ]]; then
-    log_warn "homelab-forge targets Ubuntu LTS. Detected $(uname -s)."
+    log_warn "tuninforge targets Ubuntu LTS. Detected $(uname -s)."
     log_warn "You can still --dry-run to preview, but real installs need Linux."
     [[ "$DRY_RUN" == "1" ]] || confirm "Continue anyway?" no || exit 1
   fi
@@ -131,7 +131,7 @@ require_linux() {
 # Subcommand: install
 # =============================================================================
 
-# resolve_selection: populate FORGE_SELECTION (dependency-resolved, install-
+# resolve_selection: populate TUNINFORGE_SELECTION (dependency-resolved, install-
 # ordered) from exactly one source — explicit --with, a --config file, or the
 # interactive OpenClaw-style menu. Returns 1 to abort.
 resolve_selection() {
@@ -140,26 +140,26 @@ resolve_selection() {
     local raw name bad=""
     raw="$(with_list | tr '\n' ' ')"
     for name in $raw; do
-      forge_is_service "$name" || bad="$bad $name"
+      tuninforge_is_service "$name" || bad="$bad $name"
     done
     if [[ -n "${bad// }" ]]; then
       log_error "Unknown service(s):$bad"
-      log_info  "Valid services: $(forge_all_services | tr '\n' ' ')"
+      log_info  "Valid services: $(tuninforge_all_services | tr '\n' ' ')"
       return 1
     fi
     local added
     # shellcheck disable=SC2086
-    added="$(forge_added_deps $raw)"
+    added="$(tuninforge_added_deps $raw)"
     [[ -n "${added// }" ]] && log_info "Auto-adding dependencies:$added"
     # shellcheck disable=SC2086
-    FORGE_SELECTION="$(forge_install_order $raw)"
-    log_info "Selected: $FORGE_SELECTION"
+    TUNINFORGE_SELECTION="$(tuninforge_install_order $raw)"
+    log_info "Selected: $TUNINFORGE_SELECTION"
     return 0
   fi
 
   if [[ -n "$CONFIG_FILE" ]]; then
     log_warn "--config YAML parsing lands with lib/env.sh later in Phase 1."
-    log_info "For now use --with, e.g.: ./forge.sh install --with caddy,portainer"
+    log_info "For now use --with, e.g.: ./tuninforge.sh install --with caddy,portainer"
     return 1
   fi
 
@@ -170,25 +170,25 @@ resolve_selection() {
 
 cmd_install() {
   require_linux
-  log_step "homelab-forge install"
+  log_step "tuninforge install"
 
   resolve_selection || { log_info "Nothing installed."; return 0; }
 
   # Access layer runs FIRST (before any service stack), in registry order so
   # Tailscale precedes SSH hardening (ufw-to-tailscale0 depends on it).
   local svc
-  for svc in $FORGE_SELECTION; do
+  for svc in $TUNINFORGE_SELECTION; do
     case "$svc" in
       tailscale)
         log_step "Access layer: Tailscale"
-        bash "$FORGE_MODULES/access/tailscale/install.sh"
+        bash "$TUNINFORGE_MODULES/access/tailscale/install.sh"
         ;;
       ssh-hardening)
         log_step "Access layer: SSH hardening"
         local ssh_args=()
         [[ "$DRY_RUN" == "1" ]] && ssh_args+=(--dry-run)
         [[ "$I_UNDERSTAND_THE_RISK" == "1" ]] && ssh_args+=(--i-understand-the-risk)
-        bash "$FORGE_MODULES/access/ssh-hardening/harden.sh" "${ssh_args[@]}"
+        bash "$TUNINFORGE_MODULES/access/ssh-hardening/harden.sh" "${ssh_args[@]}"
         ;;
     esac
   done
@@ -197,11 +197,11 @@ cmd_install() {
   # not yet implemented are reported as pending (arriving in a later phase).
   local -a to_deploy=()
   local pending="" deploy_rc=0
-  for svc in $FORGE_SELECTION; do
+  for svc in $TUNINFORGE_SELECTION; do
     case "$svc" in
       tailscale|ssh-hardening) continue ;;
     esac
-    if [[ -f "$FORGE_MODULES/$svc/docker-compose.yml" ]]; then
+    if [[ -f "$TUNINFORGE_MODULES/$svc/docker-compose.yml" ]]; then
       to_deploy+=("$svc")
     else
       pending="$pending $svc"
@@ -215,20 +215,20 @@ cmd_install() {
       log_step "Prerequisite: Docker"
       local dk_args=()
       [[ "$DRY_RUN" == "1" ]] && dk_args+=(--dry-run)
-      bash "$FORGE_MODULES/docker/install.sh" "${dk_args[@]}" \
+      bash "$TUNINFORGE_MODULES/docker/install.sh" "${dk_args[@]}" \
         || log_die "Docker is required for the selected services but could not be installed."
     fi
 
     # Detect the box's MagicDNS name once so Caddy can request its *.ts.net cert.
-    if [[ -z "${FORGE_TS_HOSTNAME:-}" ]] && command -v tailscale >/dev/null 2>&1; then
-      FORGE_TS_HOSTNAME="$(tailscale status --json 2>/dev/null \
+    if [[ -z "${TUNINFORGE_TS_HOSTNAME:-}" ]] && command -v tailscale >/dev/null 2>&1; then
+      TUNINFORGE_TS_HOSTNAME="$(tailscale status --json 2>/dev/null \
         | grep -o '"DNSName":"[^"]*"' | head -1 | sed 's/.*:"//;s/"//;s/\.$//' || true)"
-      export FORGE_TS_HOSTNAME
-      [[ -n "$FORGE_TS_HOSTNAME" ]] && log_info "Caddy will use MagicDNS name: $FORGE_TS_HOSTNAME"
+      export TUNINFORGE_TS_HOSTNAME
+      [[ -n "$TUNINFORGE_TS_HOSTNAME" ]] && log_info "Caddy will use MagicDNS name: $TUNINFORGE_TS_HOSTNAME"
     fi
 
     for svc in "${to_deploy[@]}"; do
-      forge_deploy_module "$svc" || { deploy_rc=1; log_error "Deployment of '$svc' did not reach healthy."; }
+      tuninforge_deploy_module "$svc" || { deploy_rc=1; log_error "Deployment of '$svc' did not reach healthy."; }
     done
 
     # Show any secrets generated across all modules exactly once.
@@ -252,36 +252,36 @@ cmd_install() {
 # Add service(s) to an already-running stack without disturbing what's installed.
 # Resolves dependencies (auto-adding any missing), then deploys each in order.
 cmd_add() {
-  [[ ${#POSITIONAL[@]} -gt 0 ]] || log_die "add: name at least one service, e.g. ./forge.sh add qdrant"
+  [[ ${#POSITIONAL[@]} -gt 0 ]] || log_die "add: name at least one service, e.g. ./tuninforge.sh add qdrant"
   require_linux
 
   # Validate names.
   local name bad=""
   for name in "${POSITIONAL[@]}"; do
     case "$name" in tailscale|ssh-hardening)
-      log_warn "'$name' is an access-layer module; add it via: ./forge.sh install --with $name"
+      log_warn "'$name' is an access-layer module; add it via: ./tuninforge.sh install --with $name"
       continue ;;
     esac
-    forge_is_service "$name" || bad="$bad $name"
+    tuninforge_is_service "$name" || bad="$bad $name"
   done
-  [[ -n "${bad// }" ]] && { log_error "Unknown service(s):$bad"; log_info "Valid: $(forge_all_services | tr '\n' ' ')"; return 1; }
+  [[ -n "${bad// }" ]] && { log_error "Unknown service(s):$bad"; log_info "Valid: $(tuninforge_all_services | tr '\n' ' ')"; return 1; }
 
   # Resolve deps + order (Bash authoritative), then note any auto-added.
   local requested; requested="$(printf '%s ' "${POSITIONAL[@]}")"
   local added
   # shellcheck disable=SC2086
-  added="$(forge_added_deps $requested)"
+  added="$(tuninforge_added_deps $requested)"
   [[ -n "${added// }" ]] && log_info "Auto-adding dependencies:$added"
   # shellcheck disable=SC2086
-  local order; order="$(forge_install_order $requested)"
+  local order; order="$(tuninforge_install_order $requested)"
   # Only deploy the non-access services.
   order="$(tr ' ' '\n' <<<"$order" | grep -vxE 'tailscale|ssh-hardening' || true)"
   log_step "Adding: $(tr '\n' ' ' <<<"$order")"
 
   local svc rc=0
   for svc in $order; do
-    [[ -f "$FORGE_MODULES/$svc/docker-compose.yml" ]] || { log_warn "No module for '$svc' yet; skipping."; continue; }
-    forge_deploy_module "$svc" || { rc=1; log_error "'$svc' did not become healthy."; }
+    [[ -f "$TUNINFORGE_MODULES/$svc/docker-compose.yml" ]] || { log_warn "No module for '$svc' yet; skipping."; continue; }
+    tuninforge_deploy_module "$svc" || { rc=1; log_error "'$svc' did not become healthy."; }
   done
   secrets_flush_notice
   [[ "$rc" -eq 0 ]] && log_ok "add complete." || return 1
@@ -294,10 +294,10 @@ cmd_add() {
 # --purge-volumes. Warns when removing something other installed services depend
 # on, and warns loudly before deleting stateful data.
 cmd_remove() {
-  [[ ${#POSITIONAL[@]} -gt 0 ]] || log_die "remove: name at least one service, e.g. ./forge.sh remove qdrant"
+  [[ ${#POSITIONAL[@]} -gt 0 ]] || log_die "remove: name at least one service, e.g. ./tuninforge.sh remove qdrant"
 
   local name bad=""
-  for name in "${POSITIONAL[@]}"; do forge_is_service "$name" || bad="$bad $name"; done
+  for name in "${POSITIONAL[@]}"; do tuninforge_is_service "$name" || bad="$bad $name"; done
   [[ -n "${bad// }" ]] && { log_error "Unknown service(s):$bad"; return 1; }
 
   # Warn if a named service is a dependency of another INSTALLED service.
@@ -305,7 +305,7 @@ cmd_remove() {
   installed_all="$(_installed_services)"
   for svc in "${POSITIONAL[@]}"; do
     # shellcheck disable=SC2086
-    dependents="$(forge_dependents_of "$svc" $installed_all)"
+    dependents="$(tuninforge_dependents_of "$svc" $installed_all)"
     # Filter dependents down to ones NOT also being removed.
     local d filtered=""
     for d in $dependents; do
@@ -318,7 +318,7 @@ cmd_remove() {
   if [[ "$PURGE_VOLUMES" == "1" ]]; then
     local stateful=""
     for svc in "${POSITIONAL[@]}"; do
-      grep -q 'com.centurylinklabs.watchtower.enable' "$FORGE_MODULES/$svc/docker-compose.yml" 2>/dev/null || stateful="$stateful $svc"
+      grep -q 'com.centurylinklabs.watchtower.enable' "$TUNINFORGE_MODULES/$svc/docker-compose.yml" 2>/dev/null || stateful="$stateful $svc"
     done
     log_alert \
       "--purge-volumes will DELETE NAMED VOLUMES for:${POSITIONAL[*]}" \
@@ -332,7 +332,7 @@ cmd_remove() {
 
   local purge_flag=""; [[ "$PURGE_VOLUMES" == "1" ]] && purge_flag="--purge-volumes"
   for svc in "${POSITIONAL[@]}"; do
-    forge_teardown_module "$svc" "$purge_flag"
+    tuninforge_teardown_module "$svc" "$purge_flag"
   done
   log_ok "remove complete."
 }
@@ -345,12 +345,12 @@ _installed_services() {
   local svc
   while IFS= read -r svc; do
     case "$svc" in tailscale|ssh-hardening) continue ;; esac
-    if forge_docker_q inspect "forge_$svc" >/dev/null 2>&1; then echo "$svc"; fi
-  done < <(forge_all_services)
+    if tuninforge_docker_q inspect "tuninforge_$svc" >/dev/null 2>&1; then echo "$svc"; fi
+  done < <(tuninforge_all_services)
 }
 
 cmd_status() {
-  log_step "homelab-forge status"
+  log_step "tuninforge status"
 
   # Access layer (no containers — detect by artifact).
   printf '\n%s\n' "${C_BOLD}Access${C_RESET}" >&2
@@ -359,7 +359,7 @@ cmd_status() {
   else
     printf '  %s tailscale       not installed\n' "${C_DIM}○${C_RESET}" >&2
   fi
-  if [[ -f /etc/ssh/sshd_config.d/00-forge-hardening.conf ]]; then
+  if [[ -f /etc/ssh/sshd_config.d/00-tuninforge-hardening.conf ]]; then
     printf '  %s ssh-hardening   applied (drop-in present)\n' "${C_GREEN}●${C_RESET}" >&2
   else
     printf '  %s ssh-hardening   not applied\n' "${C_DIM}○${C_RESET}" >&2
@@ -372,19 +372,19 @@ cmd_status() {
     local any=0
     while IFS= read -r svc; do
       [[ -z "$svc" ]] && continue
-      [[ $any -eq 0 ]] && { printf '\n%s\n' "${C_BOLD}$(forge_layer_title "$layer")${C_RESET}" >&2; any=1; }
-      cname="forge_$svc"
-      if ! forge_docker_q inspect "$cname" >/dev/null 2>&1; then
+      [[ $any -eq 0 ]] && { printf '\n%s\n' "${C_BOLD}$(tuninforge_layer_title "$layer")${C_RESET}" >&2; any=1; }
+      cname="tuninforge_$svc"
+      if ! tuninforge_docker_q inspect "$cname" >/dev/null 2>&1; then
         printf '  %s %-14s available (not installed)\n' "${C_DIM}○${C_RESET}" "$svc" >&2
         continue
       fi
-      state="$(forge_docker_q inspect --format '{{.State.Status}}' "$cname" 2>/dev/null || echo '?')"
-      health="$(forge_docker_q inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}' "$cname" 2>/dev/null || echo '-')"
+      state="$(tuninforge_docker_q inspect --format '{{.State.Status}}' "$cname" 2>/dev/null || echo '?')"
+      health="$(tuninforge_docker_q inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}' "$cname" 2>/dev/null || echo '-')"
       if [[ "$state" == "running" ]]; then mark="${C_GREEN}●${C_RESET}"; else mark="${C_RED}●${C_RESET}"; fi
       note="$state"; [[ "$health" != "-" ]] && note="$state, health=$health"
       printf '  %s %-14s %s\n' "$mark" "$svc" "$note" >&2
-    done < <(forge_services_in_layer "$layer")
-  done < <(forge_layers)
+    done < <(tuninforge_services_in_layer "$layer")
+  done < <(tuninforge_layers)
 
   printf '\n' >&2
   log_info "Per-service deep check: ./modules/<service>/healthcheck.sh"

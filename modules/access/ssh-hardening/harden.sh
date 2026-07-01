@@ -2,7 +2,7 @@
 # modules/access/ssh-hardening/harden.sh
 #
 # Hardens OpenSSH server config following a strict, lockout-safe sequence.
-# This is the single most dangerous module in homelab-forge, so it is written
+# This is the single most dangerous module in tuninforge, so it is written
 # defensively: it validates a candidate config with `sshd -t` BEFORE it ever
 # replaces the live file, reloads (never restarts) to avoid dropping sessions,
 # and refuses to declare success until the user confirms a fresh login works.
@@ -21,20 +21,20 @@
 #   --dry-run                 print changes, touch nothing
 #   --i-understand-the-risk   permit running when NOT interactive (lockout risk)
 #
-# ENV (optional, from forge.config.yaml wiring later):
+# ENV (optional, from tuninforge.config.yaml wiring later):
 #   SSH_PERMIT_ROOT_LOGIN   "no" (default) | "prohibit-password"
 #   SSH_ENABLE_FAIL2BAN     "1" to configure fail2ban (step 7)
 #   SSH_UFW_TAILSCALE_ONLY  "1" to restrict :22 to tailscale0 (step 7)
 
 set -euo pipefail
 
-: "${FORGE_LIB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)}"
+: "${TUNINFORGE_LIB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)}"
 # shellcheck source=../../../lib/log.sh
-source "$FORGE_LIB/log.sh"
+source "$TUNINFORGE_LIB/log.sh"
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
 SSHD_CONFIG_D="/etc/ssh/sshd_config.d"
-FORGE_DROPIN="$SSHD_CONFIG_D/00-forge-hardening.conf"   # 00- sorts first => wins
+TUNINFORGE_DROPIN="$SSHD_CONFIG_D/00-tuninforge-hardening.conf"   # 00- sorts first => wins
 PERMIT_ROOT_LOGIN="${SSH_PERMIT_ROOT_LOGIN:-no}"
 BACKUP_PATH=""       # set in step 2; referenced by the rollback message.
 ROLLBACK_CMD=""      # exact rollback command, built once the target is known.
@@ -143,7 +143,7 @@ step1_require_key_auth() {
 # only the main file can therefore report success while password auth stays on.
 #
 # We defend against that by (a) writing our hardening to a drop-in whose name
-# sorts first (00-forge-hardening.conf) so it wins within the dir, and (b)
+# sorts first (00-tuninforge-hardening.conf) so it wins within the dir, and (b)
 # trusting `sshd -T` (fully-resolved effective config) as the source of truth,
 # both to decide "already hardened?" and to VERIFY the change actually took.
 
@@ -205,10 +205,10 @@ effective_matches_policy() {
   return 0
 }
 
-# forge_dropin_contents: the exact drop-in file we write (also shown in dry-run).
-forge_dropin_contents() {
+# tuninforge_dropin_contents: the exact drop-in file we write (also shown in dry-run).
+tuninforge_dropin_contents() {
   local k
-  echo "# Managed by homelab-forge (ssh-hardening). Do not edit by hand."
+  echo "# Managed by tuninforge (ssh-hardening). Do not edit by hand."
   echo "# This drop-in sorts first (00-) so it wins over other *.conf here."
   echo "# sshd is first-value-wins; these override later drop-ins and the main file."
   for k in "${HARDENED_KEYS[@]}"; do
@@ -233,12 +233,12 @@ step2_backup() {
 
   if [[ "$HARDEN_TARGET" == "dropin" ]]; then
     log_info "Detected 'Include $SSHD_CONFIG_D/*.conf' — hardening via a winning drop-in:"
-    log_info "    $FORGE_DROPIN"
-    # If a forge drop-in somehow already exists, back it up too.
-    if [[ "$DRY_RUN" != "1" ]] && { [[ "$(id -u)" -eq 0 ]] && [[ -f "$FORGE_DROPIN" ]] || sudo test -f "$FORGE_DROPIN" 2>/dev/null; }; then
-      run_cmd_sudo cp -a "$FORGE_DROPIN" "${FORGE_DROPIN}.bak.${ts}"
+    log_info "    $TUNINFORGE_DROPIN"
+    # If a tuninforge drop-in somehow already exists, back it up too.
+    if [[ "$DRY_RUN" != "1" ]] && { [[ "$(id -u)" -eq 0 ]] && [[ -f "$TUNINFORGE_DROPIN" ]] || sudo test -f "$TUNINFORGE_DROPIN" 2>/dev/null; }; then
+      run_cmd_sudo cp -a "$TUNINFORGE_DROPIN" "${TUNINFORGE_DROPIN}.bak.${ts}"
     fi
-    ROLLBACK_CMD="sudo rm -f $FORGE_DROPIN && sudo systemctl reload ssh"
+    ROLLBACK_CMD="sudo rm -f $TUNINFORGE_DROPIN && sudo systemctl reload ssh"
   else
     log_warn "No drop-in Include found; will edit the main file directly (legacy layout)."
     ROLLBACK_CMD="sudo cp $BACKUP_PATH $SSHD_CONFIG && sudo systemctl reload ssh"
@@ -307,8 +307,8 @@ step3_4_apply_and_validate() {
 # Apply via drop-in: validate a merged candidate, install the drop-in, reload,
 # then VERIFY the effective values actually changed.
 _apply_dropin() {
-  log_info "Writing hardening to $FORGE_DROPIN (shown below):"
-  forge_dropin_contents | sed 's/^/    /' >&2
+  log_info "Writing hardening to $TUNINFORGE_DROPIN (shown below):"
+  tuninforge_dropin_contents | sed 's/^/    /' >&2
 
   if [[ "$DRY_RUN" == "1" ]]; then
     log_step "Step 4/7 — (dry-run) validate + verify"
@@ -321,17 +321,17 @@ _apply_dropin() {
   # place by pointing sshd -t at a merged view. Simplest robust approach: write
   # the drop-in, run `sshd -t` (validates the full tree incl. drop-ins), and if
   # it fails, remove the drop-in immediately.
-  local tmp; tmp="$(mktemp -t forge-hardening.XXXXXX.conf)"
+  local tmp; tmp="$(mktemp -t tuninforge-hardening.XXXXXX.conf)"
   # shellcheck disable=SC2064
   trap "rm -f '$tmp'" RETURN
-  forge_dropin_contents >"$tmp"
+  tuninforge_dropin_contents >"$tmp"
 
-  run_cmd_sudo install -m 0644 -o root -g root "$tmp" "$FORGE_DROPIN"
+  run_cmd_sudo install -m 0644 -o root -g root "$tmp" "$TUNINFORGE_DROPIN"
 
   log_step "Step 4/7 — Validate with 'sshd -t', then verify effective config"
   if ! run_cmd_sudo "$(sshd_bin)" -t; then
     log_error "sshd -t rejected the config after adding the drop-in. Removing it."
-    run_cmd_sudo rm -f "$FORGE_DROPIN"
+    run_cmd_sudo rm -f "$TUNINFORGE_DROPIN"
     log_die "Reverted the drop-in. Original config untouched."
   fi
   log_ok "Full config passed 'sshd -t'."
@@ -346,7 +346,7 @@ _apply_dropin() {
     log_error "sshd -T shows the effective config does NOT match policy after applying."
     log_error "Something with higher precedence is overriding the drop-in. Reverting."
     _report_effective_mismatch
-    run_cmd_sudo rm -f "$FORGE_DROPIN"
+    run_cmd_sudo rm -f "$TUNINFORGE_DROPIN"
     reload_sshd
     log_die "Reverted drop-in; effective config restored. Investigate overriding config."
   fi
@@ -518,12 +518,12 @@ configure_fail2ban() {
     run_cmd_sudo apt-get install -y fail2ban
   fi
   # Minimal, safe sshd jail. Written idempotently to a dedicated jail.d file.
-  local jail="/etc/fail2ban/jail.d/forge-sshd.local"
+  local jail="/etc/fail2ban/jail.d/tuninforge-sshd.local"
   if [[ "$DRY_RUN" == "1" ]]; then
     log_info "[dry-run] would write $jail enabling the sshd jail (maxretry=5, bantime=1h)."
   else
     run_cmd_sudo tee "$jail" >/dev/null <<'EOF'
-# Managed by homelab-forge (ssh-hardening). Safe defaults; edit as needed.
+# Managed by tuninforge (ssh-hardening). Safe defaults; edit as needed.
 [sshd]
 enabled  = true
 backend  = systemd

@@ -7,32 +7,32 @@
 # after a short settle — so we never hang forever waiting on a status that will
 # never appear.
 #
-# Depends on: lib/log.sh, lib/network.sh (for forge_docker_q).
+# Depends on: lib/log.sh, lib/network.sh (for tuninforge_docker_q).
 
-[[ -n "${_FORGE_HEALTH_SH:-}" ]] && return 0
-_FORGE_HEALTH_SH=1
+[[ -n "${_TUNINFORGE_HEALTH_SH:-}" ]] && return 0
+_TUNINFORGE_HEALTH_SH=1
 
-FORGE_HEALTH_TIMEOUT="${FORGE_HEALTH_TIMEOUT:-120}"  # seconds per container
-FORGE_HEALTH_INTERVAL="${FORGE_HEALTH_INTERVAL:-3}"  # poll cadence
+TUNINFORGE_HEALTH_TIMEOUT="${TUNINFORGE_HEALTH_TIMEOUT:-120}"  # seconds per container
+TUNINFORGE_HEALTH_INTERVAL="${TUNINFORGE_HEALTH_INTERVAL:-3}"  # poll cadence
 
 # _container_state <name> -> prints the .State.Status (running/restarting/exited…)
 _container_state() {
-  forge_docker_q inspect --format '{{.State.Status}}' "$1" 2>/dev/null || echo "missing"
+  tuninforge_docker_q inspect --format '{{.State.Status}}' "$1" 2>/dev/null || echo "missing"
 }
 
 # _container_health <name> -> prints health status, or "none" if no healthcheck:
 #   starting | healthy | unhealthy | none | missing
 _container_health() {
   local out
-  out="$(forge_docker_q inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$1" 2>/dev/null)" || { echo "missing"; return; }
+  out="$(tuninforge_docker_q inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$1" 2>/dev/null)" || { echo "missing"; return; }
   echo "${out:-none}"
 }
 
-# forge_wait_healthy <container> [timeout] -> 0 if healthy, 1 otherwise.
+# tuninforge_wait_healthy <container> [timeout] -> 0 if healthy, 1 otherwise.
 # Polls until the container is healthy (or, if no healthcheck, stably running),
 # printing a single progress line that updates in place.
-forge_wait_healthy() {
-  local name="$1" timeout="${2:-$FORGE_HEALTH_TIMEOUT}"
+tuninforge_wait_healthy() {
+  local name="$1" timeout="${2:-$TUNINFORGE_HEALTH_TIMEOUT}"
   local waited=0 state health stable=0
 
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
@@ -79,8 +79,8 @@ forge_wait_healthy() {
 
     printf '\r  %swaiting for %s… %ss (state=%s health=%s)%s' \
       "${C_DIM}" "$name" "$waited" "$state" "$health" "${C_RESET}" >&2
-    sleep "$FORGE_HEALTH_INTERVAL"
-    waited=$((waited + FORGE_HEALTH_INTERVAL))
+    sleep "$TUNINFORGE_HEALTH_INTERVAL"
+    waited=$((waited + TUNINFORGE_HEALTH_INTERVAL))
   done
 
   printf '\n' >&2
@@ -88,13 +88,13 @@ forge_wait_healthy() {
   return 1
 }
 
-# forge_wait_healthy_all <container...> -> 0 only if every one is healthy.
+# tuninforge_wait_healthy_all <container...> -> 0 only if every one is healthy.
 # Prints a per-service PASS/FAIL summary at the end.
-forge_wait_healthy_all() {
+tuninforge_wait_healthy_all() {
   local overall=0 name
   local -a passed=() failed=()
   for name in "$@"; do
-    if forge_wait_healthy "$name"; then
+    if tuninforge_wait_healthy "$name"; then
       passed+=("$name")
     else
       failed+=("$name"); overall=1

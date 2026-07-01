@@ -5,9 +5,9 @@
 apiVersion: 1
 
 providers:
-  - name: homelab-forge
+  - name: tuninforge
     orgId: 1
-    folder: homelab-forge
+    folder: tuninforge
     type: file
     disableDeletion: false
     editable: true

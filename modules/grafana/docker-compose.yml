@@ -1,13 +1,13 @@
 # modules/grafana/docker-compose.yml
-# Grafana for homelab-forge — dashboards over Prometheus (metrics) + Loki (logs).
+# Grafana for tuninforge — dashboards over Prometheus (metrics) + Loki (logs).
 #
 # Auto-provisioning: datasources and a starter dashboard are wired at startup
 # from the mounted provisioning/ tree — no click-through setup. Prometheus and
 # Loki are added as datasources automatically; a "Homelab Overview" dashboard
 # is imported.
 #
-# Networking: BOTH networks. forge_internal to read prometheus:9090 + loki:3100
-# privately; forge_public so Caddy fronts the UI at a *.ts.net name. No ports
+# Networking: BOTH networks. tuninforge_internal to read prometheus:9090 + loki:3100
+# privately; tuninforge_public so Caddy fronts the UI at a *.ts.net name. No ports
 # published directly.
 #
 # Update: watchtower opt-in (config/dashboards are provisioned from files; only
@@ -16,7 +16,7 @@
 services:
   grafana:
     image: grafana/grafana:13.1.0
-    container_name: forge_grafana
+    container_name: tuninforge_grafana
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
@@ -31,22 +31,22 @@ services:
       - ./dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     networks:
-      - forge_internal
-      - forge_public
+      - tuninforge_internal
+      - tuninforge_public
     labels:
       com.centurylinklabs.watchtower.enable: "true"
     # No in-container healthcheck: the grafana image doesn't reliably ship
-    # curl/wget. forge's liveness fallback + healthcheck.sh (which probes
+    # curl/wget. tuninforge's liveness fallback + healthcheck.sh (which probes
     # /api/health from a curl container) verify it.
 
 volumes:
   grafana_data:
-    name: forge_grafana_data
+    name: tuninforge_grafana_data
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
-  forge_public:
+    name: tuninforge_internal
+  tuninforge_public:
     external: true
-    name: forge_public
+    name: tuninforge_public

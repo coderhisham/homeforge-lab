@@ -11,12 +11,12 @@
 #
 # Depends on: lib/log.sh.
 
-[[ -n "${_FORGE_SECRETS_SH:-}" ]] && return 0
-_FORGE_SECRETS_SH=1
+[[ -n "${_TUNINFORGE_SECRETS_SH:-}" ]] && return 0
+_TUNINFORGE_SECRETS_SH=1
 
 # Accumulates "SERVICE|KEY|VALUE" for secrets generated during THIS run, so we
 # can print them together once at the end via secrets_flush_notice.
-_FORGE_NEW_SECRETS=()
+_TUNINFORGE_NEW_SECRETS=()
 
 # --- Generators --------------------------------------------------------------
 # gen_hex <bytes>   -> hex string (2*bytes chars). Safe everywhere.
@@ -62,11 +62,11 @@ gen_alnum() {
 # secrets_register <service> <key> <value>: record a freshly generated secret so
 # it is shown once. Called by lib/env.sh when it fills a placeholder.
 secrets_register() {
-  _FORGE_NEW_SECRETS+=("$1|$2|$3")
+  _TUNINFORGE_NEW_SECRETS+=("$1|$2|$3")
 }
 
 # secrets_any_new -> 0 if secrets were generated this run.
-secrets_any_new() { [ "${#_FORGE_NEW_SECRETS[@]}" -gt 0 ]; }
+secrets_any_new() { [ "${#_TUNINFORGE_NEW_SECRETS[@]}" -gt 0 ]; }
 
 # secrets_flush_notice: print all secrets generated this run, ONCE, with a
 # prominent save-now warning, then clear the buffer. In DRY_RUN we don't have
@@ -75,8 +75,8 @@ secrets_flush_notice() {
   secrets_any_new || return 0
 
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    log_info "[dry-run] would generate ${#_FORGE_NEW_SECRETS[@]} secret(s) and show them once here."
-    _FORGE_NEW_SECRETS=()
+    log_info "[dry-run] would generate ${#_TUNINFORGE_NEW_SECRETS[@]} secret(s) and show them once here."
+    _TUNINFORGE_NEW_SECRETS=()
     return 0
   fi
 
@@ -86,7 +86,7 @@ secrets_flush_notice() {
     "Store them in your password manager before continuing."
 
   local entry svc key val last_svc=""
-  for entry in "${_FORGE_NEW_SECRETS[@]}"; do
+  for entry in "${_TUNINFORGE_NEW_SECRETS[@]}"; do
     svc="${entry%%|*}"; entry="${entry#*|}"
     key="${entry%%|*}"; val="${entry#*|}"
     if [[ "$svc" != "$last_svc" ]]; then
@@ -97,5 +97,5 @@ secrets_flush_notice() {
   done
   printf '\n' >&2
   log_warn "The above will not be printed again. Saved? Continuing."
-  _FORGE_NEW_SECRETS=()
+  _TUNINFORGE_NEW_SECRETS=()
 }

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # modules/ollama/healthcheck.sh — verify Ollama is up and serving.
-# Exit 0 = healthy. Called by `forge.sh status` and after deploy.
+# Exit 0 = healthy. Called by `tuninforge.sh status` and after deploy.
 
 set -euo pipefail
 
-CONTAINER="forge_ollama"
+CONTAINER="tuninforge_ollama"
 
 _dk() {
   if docker info >/dev/null 2>&1; then docker "$@";

@@ -3,7 +3,7 @@
 ## What it does
 
 Portainer is a web UI for managing Docker: containers, images, volumes,
-networks, logs, and stacks. In homelab-forge it gives you a visual overview of
+networks, logs, and stacks. In tuninforge it gives you a visual overview of
 everything the installer stands up.
 
 ## ⚠ Security — read this first
@@ -19,7 +19,7 @@ Portainer UI effectively controls the machine. Two rules follow:
    admin-account setup screen. Portainer **disables initial setup a few minutes
    after first boot** as an anti-hijack measure — so open the UI over Tailscale
    and set a strong password right after deploy. If you miss the window, restart
-   the container (`docker restart forge_portainer`) to reopen setup.
+   the container (`docker restart tuninforge_portainer`) to reopen setup.
 
 The socket is mounted read-only (`:ro`), which reduces but does **not** eliminate
 the risk — many privileged operations still work. Treat access as root.
@@ -29,19 +29,19 @@ the risk — many privileged operations still work. Treat access as root.
 ```bash
 ./modules/portainer/healthcheck.sh
 # or
-docker ps --filter name=forge_portainer
+docker ps --filter name=tuninforge_portainer
 
 # Status API (from the host):
-docker exec forge_portainer wget -qO- http://localhost:9000/api/status
+docker exec tuninforge_portainer wget -qO- http://localhost:9000/api/status
 ```
 
-`forge.sh status` also reports Portainer's health.
+`tuninforge.sh status` also reports Portainer's health.
 
 ## First login
 
 1. Ensure Caddy is running and Tailscale is up.
 2. From a tailnet device, browse to Portainer's `*.ts.net` URL (the Caddy site
-   block for Portainer is wired when you add it via `forge.sh`).
+   block for Portainer is wired when you add it via `tuninforge.sh`).
 3. Create the admin user + strong password on the setup screen.
 4. Choose the **local** Docker environment when prompted.
 
@@ -49,9 +49,9 @@ docker exec forge_portainer wget -qO- http://localhost:9000/api/status
 
 | Symptom | Cause / fix |
 |---|---|
-| Setup screen says "instance timed out" | You passed the initial-setup window. `docker restart forge_portainer`, then retry immediately. |
-| Can't reach the UI | Caddy not running, Tailscale down, or the Portainer `conf.d` site block not present. Check `forge.sh status`. |
-| Healthcheck fails | Image may lack `wget`; adjust the healthcheck to the container's available tool. Check `docker logs forge_portainer`. |
+| Setup screen says "instance timed out" | You passed the initial-setup window. `docker restart tuninforge_portainer`, then retry immediately. |
+| Can't reach the UI | Caddy not running, Tailscale down, or the Portainer `conf.d` site block not present. Check `tuninforge.sh status`. |
+| Healthcheck fails | Image may lack `wget`; adjust the healthcheck to the container's available tool. Check `docker logs tuninforge_portainer`. |
 | "permission denied" on the socket | SELinux/AppArmor or socket perms. Confirm the daemon socket path and that the container can read it. |
 
 ## Update strategy
@@ -62,11 +62,11 @@ deliberately for a controlled upgrade, or let Watchtower track the CE line.
 
 ## Backup / restore
 
-All state is the `forge_portainer_data` volume (users, settings, endpoints).
+All state is the `tuninforge_portainer_data` volume (users, settings, endpoints).
 Back it up via the stack's Restic setup, or manually:
 
 ```bash
-docker run --rm -v forge_portainer_data:/data -v "$PWD":/backup alpine \
+docker run --rm -v tuninforge_portainer_data:/data -v "$PWD":/backup alpine \
   tar czf /backup/portainer_data.tgz -C /data .
 ```
 

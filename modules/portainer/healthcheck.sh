@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # modules/portainer/healthcheck.sh — verify Portainer is up and serving.
 #
-# Exit 0 = healthy, non-zero = not. Called by `forge.sh status` and after deploy.
+# Exit 0 = healthy, non-zero = not. Called by `tuninforge.sh status` and after deploy.
 
 set -euo pipefail
 
-CONTAINER="forge_portainer"
+CONTAINER="tuninforge_portainer"
 
 _dk() {
   if docker info >/dev/null 2>&1; then docker "$@";

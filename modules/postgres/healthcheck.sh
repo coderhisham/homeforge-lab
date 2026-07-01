@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # modules/postgres/healthcheck.sh — verify Postgres is accepting connections.
-# Exit 0 = healthy. Called by `forge.sh status` and after deploy.
+# Exit 0 = healthy. Called by `tuninforge.sh status` and after deploy.
 
 set -euo pipefail
 
-CONTAINER="forge_postgres"
+CONTAINER="tuninforge_postgres"
 
 _dk() {
   if docker info >/dev/null 2>&1; then docker "$@";

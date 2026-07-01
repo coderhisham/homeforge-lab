@@ -6,7 +6,7 @@
 # POSTGRES_MULTIPLE_DATABASES, with an owner role of the same name.
 #
 # Idempotency note: this only fires on a fresh volume. To add databases to an
-# already-initialized Postgres later, use `./forge.sh add <svc>` or create them
+# already-initialized Postgres later, use `./tuninforge.sh add <svc>` or create them
 # manually — editing this script won't re-run it.
 
 set -euo pipefail

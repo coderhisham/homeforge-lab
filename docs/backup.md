@@ -1,25 +1,25 @@
 # Backup & restore (Restic)
 
-homelab-forge ships a working, encrypted backup out of the box. `scripts/backup.sh`
+tuninforge ships a working, encrypted backup out of the box. `scripts/backup.sh`
 captures the data layer; `scripts/restore.sh` brings it back. Both use
 [Restic](https://restic.net) — encrypted, deduplicated, incremental.
 
 ## What gets backed up
 
-- **A Postgres logical dump** (`pg_dumpall`) when `forge_postgres` is running —
+- **A Postgres logical dump** (`pg_dumpall`) when `tuninforge_postgres` is running —
   kept for manual and cross-version recovery. (On a normal restore the Postgres
   data **volume** is the source; the dump is only auto-applied as a fallback if
   the volume is absent from the snapshot — applying both would duplicate rows.)
-- **Every `forge_*_data` Docker volume** (postgres, redis, minio, qdrant, caddy,
+- **Every `tuninforge_*_data` Docker volume** (postgres, redis, minio, qdrant, caddy,
   portainer, …), tarred via a throwaway alpine container.
 
 Everything is staged, then sent to the Restic repo in one encrypted snapshot
-tagged `forge`. Plaintext staging is deleted afterward.
+tagged `tuninforge`. Plaintext staging is deleted afterward.
 
 ## The encryption password — SAVE IT
 
 On first run, if you haven't provided one, a strong password is generated at
-`/var/lib/forge/restic.pass` (root, 0600) and printed **once**.
+`/var/lib/tuninforge/restic.pass` (root, 0600) and printed **once**.
 
 > **Without this password your backups cannot be decrypted or restored.** Copy
 > it to your password manager AND somewhere off the box. If the box dies and the
@@ -28,13 +28,13 @@ On first run, if you haven't provided one, a strong password is generated at
 ## Default: encrypted local repo
 
 ```bash
-sudo ./scripts/backup.sh            # backup to /var/lib/forge/restic
+sudo ./scripts/backup.sh            # backup to /var/lib/tuninforge/restic
 sudo ./scripts/backup.sh --dry-run  # preview, change nothing   (set DRY_RUN=1)
-restic -r /var/lib/forge/restic snapshots   # list snapshots
+restic -r /var/lib/tuninforge/restic snapshots   # list snapshots
 ```
 
 Retention (auto-pruned): last 7 daily, 4 weekly, 6 monthly. Tune with
-`FORGE_KEEP_DAILY` / `FORGE_KEEP_WEEKLY` / `FORGE_KEEP_MONTHLY`.
+`TUNINFORGE_KEEP_DAILY` / `TUNINFORGE_KEEP_WEEKLY` / `TUNINFORGE_KEEP_MONTHLY`.
 
 ## Redirect to a remote repo (S3 / Backblaze B2 / SFTP)
 
@@ -44,17 +44,17 @@ default.
 
 ```bash
 # Amazon S3 (or any S3-compatible endpoint, incl. your own MinIO elsewhere)
-export RESTIC_REPOSITORY="s3:s3.amazonaws.com/my-bucket/forge"
+export RESTIC_REPOSITORY="s3:s3.amazonaws.com/my-bucket/tuninforge"
 export AWS_ACCESS_KEY_ID=...  AWS_SECRET_ACCESS_KEY=...
-export RESTIC_PASSWORD_FILE=/var/lib/forge/restic.pass
+export RESTIC_PASSWORD_FILE=/var/lib/tuninforge/restic.pass
 sudo -E ./scripts/backup.sh
 
 # Backblaze B2
-export RESTIC_REPOSITORY="b2:my-bucket:forge"
+export RESTIC_REPOSITORY="b2:my-bucket:tuninforge"
 export B2_ACCOUNT_ID=...  B2_ACCOUNT_KEY=...
 
 # SFTP / rsync target
-export RESTIC_REPOSITORY="sftp:user@host:/srv/restic/forge"
+export RESTIC_REPOSITORY="sftp:user@host:/srv/restic/tuninforge"
 ```
 
 (Use `sudo -E` so the exported env reaches the script.) Schedule it with a cron
@@ -88,7 +88,7 @@ A backup you've never restored is a hope, not a backup. Periodically:
 
 | Symptom | Cause / fix |
 |---|---|
-| "No Restic password file … cannot decrypt" | The password file is missing and none is in env. Restore the saved password to `/var/lib/forge/restic.pass` or export `RESTIC_PASSWORD`. |
+| "No Restic password file … cannot decrypt" | The password file is missing and none is in env. Restore the saved password to `/var/lib/tuninforge/restic.pass` or export `RESTIC_PASSWORD`. |
 | `restic init` says already initialized | Fine — idempotent; backup continues. |
 | Remote backup can't authenticate | Missing/incorrect cloud credentials in env; and remember `sudo -E`. |
 | Restore ran but a service is unhealthy | Check that service's `healthcheck.sh` and `docker logs`; the Postgres dump re-import waits for readiness but a very slow start can miss it — re-run the import. |

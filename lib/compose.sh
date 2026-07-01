@@ -12,78 +12,78 @@
 #
 # Depends on: lib/log.sh, lib/secrets.sh, lib/env.sh, lib/network.sh, lib/health.sh.
 
-[[ -n "${_FORGE_COMPOSE_SH:-}" ]] && return 0
-_FORGE_COMPOSE_SH=1
+[[ -n "${_TUNINFORGE_COMPOSE_SH:-}" ]] && return 0
+_TUNINFORGE_COMPOSE_SH=1
 
-# _FORGE_COMPOSE_CMD is resolved once to an array: ("docker" "compose") or
+# _TUNINFORGE_COMPOSE_CMD is resolved once to an array: ("docker" "compose") or
 # ("docker-compose"). Empty until probed.
-_FORGE_COMPOSE_CMD=()
-_forge_compose_probe_done=0
+_TUNINFORGE_COMPOSE_CMD=()
+_tuninforge_compose_probe_done=0
 
-_forge_compose_probe() {
-  [[ "$_forge_compose_probe_done" == "1" ]] && return 0
-  _forge_compose_probe_done=1
+_tuninforge_compose_probe() {
+  [[ "$_tuninforge_compose_probe_done" == "1" ]] && return 0
+  _tuninforge_compose_probe_done=1
   # Prefer the v2 plugin (`docker compose`); it shares Docker's sudo posture.
-  if forge_docker_q compose version >/dev/null 2>&1; then
-    if [[ -n "$_FORGE_DOCKER_SUDO" ]]; then
-      _FORGE_COMPOSE_CMD=(sudo docker compose)
+  if tuninforge_docker_q compose version >/dev/null 2>&1; then
+    if [[ -n "$_TUNINFORGE_DOCKER_SUDO" ]]; then
+      _TUNINFORGE_COMPOSE_CMD=(sudo docker compose)
     else
-      _FORGE_COMPOSE_CMD=(docker compose)
+      _TUNINFORGE_COMPOSE_CMD=(docker compose)
     fi
   elif command -v docker-compose >/dev/null 2>&1; then
-    if [[ -n "$_FORGE_DOCKER_SUDO" ]]; then
-      _FORGE_COMPOSE_CMD=(sudo docker-compose)
+    if [[ -n "$_TUNINFORGE_DOCKER_SUDO" ]]; then
+      _TUNINFORGE_COMPOSE_CMD=(sudo docker-compose)
     else
-      _FORGE_COMPOSE_CMD=(docker-compose)
+      _TUNINFORGE_COMPOSE_CMD=(docker-compose)
     fi
   fi
 }
 
-# forge_have_compose -> 0 if a compose implementation is available.
-forge_have_compose() {
-  _forge_docker_probe
-  _forge_compose_probe
-  [[ "${#_FORGE_COMPOSE_CMD[@]}" -gt 0 ]]
+# tuninforge_have_compose -> 0 if a compose implementation is available.
+tuninforge_have_compose() {
+  _tuninforge_docker_probe
+  _tuninforge_compose_probe
+  [[ "${#_TUNINFORGE_COMPOSE_CMD[@]}" -gt 0 ]]
 }
 
 # _module_dir <name> -> absolute module directory path.
-_module_dir() { echo "${FORGE_MODULES:-modules}/$1"; }
+_module_dir() { echo "${TUNINFORGE_MODULES:-modules}/$1"; }
 
-# forge_compose <module> <compose-args...> — run compose for a module, scoped to
-# its directory + .env, with a stable project name (forge_<module>). Honors
+# tuninforge_compose <module> <compose-args...> — run compose for a module, scoped to
+# its directory + .env, with a stable project name (tuninforge_<module>). Honors
 # DRY_RUN for state-changing subcommands.
-forge_compose() {
+tuninforge_compose() {
   local module="$1"; shift
   local dir; dir="$(_module_dir "$module")"
   local file="$dir/docker-compose.yml" envfile="$dir/.env"
 
   [[ -f "$file" ]] || log_die "compose: $file not found for module '$module'."
-  _forge_docker_probe
-  _forge_compose_probe
-  forge_have_compose || log_die "compose: neither 'docker compose' nor 'docker-compose' is available."
+  _tuninforge_docker_probe
+  _tuninforge_compose_probe
+  tuninforge_have_compose || log_die "compose: neither 'docker compose' nor 'docker-compose' is available."
 
-  local -a base=("${_FORGE_COMPOSE_CMD[@]}" -p "forge_${module}" -f "$file")
+  local -a base=("${_TUNINFORGE_COMPOSE_CMD[@]}" -p "tuninforge_${module}" -f "$file")
   [[ -f "$envfile" ]] && base+=(--env-file "$envfile")
 
   run_cmd "${base[@]}" "$@"
 }
 
-# forge_module_containers <module> -> names of containers for the module (running
+# tuninforge_module_containers <module> -> names of containers for the module (running
 # or not). Used to feed the health waiter and status. Read-only.
-forge_module_containers() {
+tuninforge_module_containers() {
   local module="$1"
   local dir; dir="$(_module_dir "$module")"
   local file="$dir/docker-compose.yml" envfile="$dir/.env"
   [[ -f "$file" ]] || return 0
-  _forge_docker_probe; _forge_compose_probe
-  forge_have_compose || return 0
-  local -a base=("${_FORGE_COMPOSE_CMD[@]}" -p "forge_${module}" -f "$file")
+  _tuninforge_docker_probe; _tuninforge_compose_probe
+  tuninforge_have_compose || return 0
+  local -a base=("${_TUNINFORGE_COMPOSE_CMD[@]}" -p "tuninforge_${module}" -f "$file")
   [[ -f "$envfile" ]] && base+=(--env-file "$envfile")
   "${base[@]}" ps --format '{{.Names}}' 2>/dev/null || true
 }
 
 # --- Standard deploy sequence ------------------------------------------------
-# forge_deploy_module <module> — the full, idempotent bring-up for one module:
+# tuninforge_deploy_module <module> — the full, idempotent bring-up for one module:
 #   1. materialize .env (generate secrets on first run)
 #   2. ensure shared networks exist
 #   3. run optional pre-deploy setup.sh (cross-service wiring, e.g. create a DB)
@@ -91,7 +91,7 @@ forge_module_containers() {
 #   5. up -d
 #   6. wait for health, report PASS/FAIL
 # Returns non-zero if the module does not end up healthy.
-forge_deploy_module() {
+tuninforge_deploy_module() {
   local module="$1"
   local dir; dir="$(_module_dir "$module")"
   [[ -d "$dir" ]] || log_die "deploy: module directory $dir does not exist."
@@ -103,25 +103,25 @@ forge_deploy_module() {
   env_materialize "$dir" "$module"
 
   # 2. networks.
-  forge_ensure_networks
+  tuninforge_ensure_networks
 
   # 3. Optional pre-deploy hook. A module ships setup.sh when it needs to wire
   #    into another service before starting (e.g. n8n ensuring its Postgres
-  #    database + reading Postgres's generated password via forge_get_env). It
-  #    runs with the forge libs sourced and honors DRY_RUN itself.
+  #    database + reading Postgres's generated password via tuninforge_get_env). It
+  #    runs with the tuninforge libs sourced and honors DRY_RUN itself.
   if [[ -f "$dir/setup.sh" ]]; then
     log_info "Running pre-deploy setup for '$module'…"
-    FORGE_LIB="$FORGE_LIB" FORGE_MODULES="$FORGE_MODULES" DRY_RUN="${DRY_RUN:-0}" \
+    TUNINFORGE_LIB="$TUNINFORGE_LIB" TUNINFORGE_MODULES="$TUNINFORGE_MODULES" DRY_RUN="${DRY_RUN:-0}" \
       bash "$dir/setup.sh" || log_die "Pre-deploy setup for '$module' failed."
   fi
 
   # 4. pull (best-effort; a pull failure shouldn't abort if an image is cached).
   log_info "Pulling images for '$module'…"
-  forge_compose "$module" pull || log_warn "Pull reported issues for '$module'; continuing (image may be cached)."
+  tuninforge_compose "$module" pull || log_warn "Pull reported issues for '$module'; continuing (image may be cached)."
 
   # 5. up.
   log_info "Starting '$module'…"
-  forge_compose "$module" up -d || log_die "compose up failed for '$module'."
+  tuninforge_compose "$module" up -d || log_die "compose up failed for '$module'."
 
   # 5. health.
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
@@ -130,26 +130,26 @@ forge_deploy_module() {
   fi
   local -a containers=()
   local c
-  while IFS= read -r c; do [[ -n "$c" ]] && containers+=("$c"); done < <(forge_module_containers "$module")
+  while IFS= read -r c; do [[ -n "$c" ]] && containers+=("$c"); done < <(tuninforge_module_containers "$module")
   if [[ "${#containers[@]}" -eq 0 ]]; then
     log_warn "No containers reported for '$module'; cannot verify health."
     return 1
   fi
-  forge_wait_healthy_all "${containers[@]}"
+  tuninforge_wait_healthy_all "${containers[@]}"
 }
 
-# forge_teardown_module <module> [--purge-volumes] — stop & remove a module's
+# tuninforge_teardown_module <module> [--purge-volumes] — stop & remove a module's
 # containers. With --purge-volumes also deletes named volumes (DESTRUCTIVE).
-forge_teardown_module() {
+tuninforge_teardown_module() {
   local module="$1" purge="${2:-}"
   local dir; dir="$(_module_dir "$module")"
   [[ -f "$dir/docker-compose.yml" ]] || { log_warn "teardown: no compose file for '$module'."; return 0; }
 
   if [[ "$purge" == "--purge-volumes" ]]; then
     log_warn "Removing '$module' containers AND named volumes (data will be lost)."
-    forge_compose "$module" down --volumes
+    tuninforge_compose "$module" down --volumes
   else
     log_info "Removing '$module' containers (volumes preserved)."
-    forge_compose "$module" down
+    tuninforge_compose "$module" down
   fi
 }

@@ -18,8 +18,8 @@
 #
 # Depends on: lib/log.sh, lib/secrets.sh.
 
-[[ -n "${_FORGE_ENV_SH:-}" ]] && return 0
-_FORGE_ENV_SH=1
+[[ -n "${_TUNINFORGE_ENV_SH:-}" ]] && return 0
+_TUNINFORGE_ENV_SH=1
 
 # _env_expand_placeholder <service> <key> <raw-value> -> resolved value.
 # Resolves a __GEN:type:len__ token to a fresh secret and registers it so it is
@@ -87,7 +87,7 @@ env_materialize() {
 
   # First run: create .env from example, expanding placeholders.
   if [[ ! -f "$envfile" ]]; then
-    local tmp; tmp="$(mktemp -t forge-env.XXXXXX)"
+    local tmp; tmp="$(mktemp -t tuninforge-env.XXXXXX)"
     local line key val resolved
     while IFS= read -r line || [[ -n "$line" ]]; do
       case "$line" in
@@ -128,15 +128,15 @@ env_materialize() {
 }
 
 # --- Cross-service secret access --------------------------------------------
-# forge_get_env <module> <key> -> print the value of <key> from another module's
+# tuninforge_get_env <module> <key> -> print the value of <key> from another module's
 # materialized .env (e.g. read Postgres's generated password for n8n's DB URL).
 # Prints nothing and returns 1 if the file or key is absent.
 #
 # This is how one module consumes another's generated secret WITHOUT copying or
 # re-generating it — lib/env.sh (this file) remains the single writer of secrets.
-forge_get_env() {
+tuninforge_get_env() {
   local module="$1" key="$2"
-  local envfile="${FORGE_MODULES:-modules}/$module/.env"
+  local envfile="${TUNINFORGE_MODULES:-modules}/$module/.env"
   [[ -f "$envfile" ]] || return 1
   # Read the last active assignment for the key; strip optional surrounding
   # quotes. Never sourced (avoids executing arbitrary content).

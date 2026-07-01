@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # modules/minio/healthcheck.sh — verify MinIO is up and serving.
-# Exit 0 = healthy. Called by `forge.sh status` and after deploy.
+# Exit 0 = healthy. Called by `tuninforge.sh status` and after deploy.
 #
 # NOTE: MinIO images are minimal. This tries `mc ready local` (ships in the
 # server image); if `mc` is absent, it falls back to reporting the container
-# run-state, matching forge's liveness policy. See docs/minio.md.
+# run-state, matching tuninforge's liveness policy. See docs/minio.md.
 
 set -euo pipefail
 
-CONTAINER="forge_minio"
+CONTAINER="tuninforge_minio"
 
 _dk() {
   if docker info >/dev/null 2>&1; then docker "$@";

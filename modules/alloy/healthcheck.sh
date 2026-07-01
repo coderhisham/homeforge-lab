@@ -5,4 +5,4 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../lib/probe.sh
 source "$DIR/../../lib/probe.sh"
-forge_http_ready alloy forge_alloy forge_internal "http://forge_alloy:12345/-/ready"
+tuninforge_http_ready alloy tuninforge_alloy tuninforge_internal "http://tuninforge_alloy:12345/-/ready"

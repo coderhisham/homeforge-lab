@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # modules/caddy/healthcheck.sh — verify Caddy is up and serving.
 #
-# Exit 0 = healthy, non-zero = not. Called by `forge.sh status` and after
-# deploy. Uses the shared Docker helper if sourced within forge, else falls
+# Exit 0 = healthy, non-zero = not. Called by `tuninforge.sh status` and after
+# deploy. Uses the shared Docker helper if sourced within tuninforge, else falls
 # back to a bare `docker`.
 
 set -euo pipefail
 
-CONTAINER="forge_caddy"
+CONTAINER="tuninforge_caddy"
 
-# Resolve a docker invocation (respects sudo if needed), independent of forge.
+# Resolve a docker invocation (respects sudo if needed), independent of tuninforge.
 _dk() {
   if docker info >/dev/null 2>&1; then docker "$@";
   elif sudo -n docker info >/dev/null 2>&1; then sudo docker "$@";

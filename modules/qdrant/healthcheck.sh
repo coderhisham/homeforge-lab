@@ -6,4 +6,4 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../lib/probe.sh
 source "$DIR/../../lib/probe.sh"
-forge_http_ready qdrant forge_qdrant forge_internal "http://forge_qdrant:6333/readyz"
+tuninforge_http_ready qdrant tuninforge_qdrant tuninforge_internal "http://tuninforge_qdrant:6333/readyz"

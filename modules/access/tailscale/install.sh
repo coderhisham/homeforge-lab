@@ -6,7 +6,7 @@
 # browser/headless auth, asks the user to choose an SSH access model explicitly,
 # and verifies connectivity before returning.
 #
-# Honors: DRY_RUN, FORGE_ASSUME_YES. Reads optional env:
+# Honors: DRY_RUN, TUNINFORGE_ASSUME_YES. Reads optional env:
 #   TS_AUTHKEY        pre-supplied auth key (else prompt / browser)
 #   TS_SSH_MODE       "tailscale-ssh" | "sshd" (else ask)
 #   TS_HOSTNAME       override the machine name registered on the tailnet
@@ -15,9 +15,9 @@
 
 set -euo pipefail
 
-: "${FORGE_LIB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)}"
+: "${TUNINFORGE_LIB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)}"
 # shellcheck source=../../../lib/log.sh
-source "$FORGE_LIB/log.sh"
+source "$TUNINFORGE_LIB/log.sh"
 
 TS_INSTALL_URL="https://tailscale.com/install.sh"
 
@@ -31,7 +31,7 @@ install_binary() {
   log_step "Installing Tailscale"
   log_info "The official installer will be downloaded from:"
   log_info "    $TS_INSTALL_URL"
-  log_info "Per security best practice, homelab-forge downloads it to a file and"
+  log_info "Per security best practice, tuninforge downloads it to a file and"
   log_info "shows it to you BEFORE running — it never pipes curl straight to sh."
 
   local tmp; tmp="$(mktemp -t tailscale-install.XXXXXX.sh)"
@@ -88,7 +88,7 @@ choose_ssh_mode() {
     2) Traditional sshd — Classic OpenSSH with public-key auth. Pair this with
                          the SSH-hardening module. You manage keys yourself.
 
-  These are different trust models. homelab-forge will NOT silently enable both.
+  These are different trust models. tuninforge will NOT silently enable both.
   If you pick Tailscale SSH, you can still keep sshd for a break-glass path, but
   that's your explicit choice to make afterward.
 EOF
@@ -126,7 +126,7 @@ bring_up() {
   [[ -n "${TS_HOSTNAME:-}" ]] && up_args+=(--hostname "$TS_HOSTNAME")
 
   local authkey="${TS_AUTHKEY:-}"
-  if [[ -z "$authkey" && -t 0 && "$FORGE_ASSUME_YES" != "1" ]]; then
+  if [[ -z "$authkey" && -t 0 && "$TUNINFORGE_ASSUME_YES" != "1" ]]; then
     log_info "You can paste a Tailscale auth key now, or leave blank to authenticate in a browser."
     printf '%s ' "${C_BOLD}Tailscale auth key (input hidden, blank = browser):${C_RESET}" >&2
     read -rs authkey || authkey=""
@@ -189,7 +189,7 @@ main() {
   log_ok "Tailscale module complete."
   if [[ "$TS_SSH_MODE" == "sshd" ]]; then
     log_info "You chose traditional sshd — run the SSH-hardening module next:"
-    log_info "    ./forge.sh install --with ssh-hardening"
+    log_info "    ./tuninforge.sh install --with ssh-hardening"
   fi
 }
 

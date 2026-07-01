@@ -4,7 +4,7 @@
 
 Hardens the OpenSSH server so the box only accepts key-based logins, following
 a strict, **lockout-safe** sequence. This is the single most dangerous module in
-homelab-forge — a careless sshd change can lock you out of a remote server
+tuninforge — a careless sshd change can lock you out of a remote server
 permanently — so it is built to fail safe at every step.
 
 It enforces these directives (only changing values that differ from the target):
@@ -28,7 +28,7 @@ It enforces these directives (only changing values that differ from the target):
    **first-value-wins** and reads drop-ins via the `Include` before the rest of
    the main file — so a cloud-init drop-in can silently override edits to the
    main file. To defeat that, hardening is written to
-   `/etc/ssh/sshd_config.d/00-forge-hardening.conf` (the `00-` prefix sorts
+   `/etc/ssh/sshd_config.d/00-tuninforge-hardening.conf` (the `00-` prefix sorts
    first, so it wins). On legacy layouts with no `Include`, it edits the main
    file directly (idempotent, duplicate-collapsing). It shows you exactly what
    it will write.
@@ -50,16 +50,16 @@ It enforces these directives (only changing values that differ from the target):
 > **Why a drop-in?** Editing only `/etc/ssh/sshd_config` is a classic footgun on
 > Ubuntu 22.04/24.04: the main file's `Include` is read first, so a drop-in like
 > `50-cloud-init.conf` shipping `PasswordAuthentication yes` wins over your edit.
-> Writing `00-forge-hardening.conf` plus verifying via `sshd -T` closes that gap.
+> Writing `00-tuninforge-hardening.conf` plus verifying via `sshd -T` closes that gap.
 
 ## How to run it
 
 ```bash
 # Preview every change without touching the system (recommended first):
-./forge.sh install --with ssh-hardening --dry-run
+./tuninforge.sh install --with ssh-hardening --dry-run
 
 # Real run (interactive — required by default):
-./forge.sh install --with ssh-hardening
+./tuninforge.sh install --with ssh-hardening
 ```
 
 ### Non-interactive / unattended
@@ -68,7 +68,7 @@ The module **refuses to run non-interactively** (no TTY) unless you explicitly
 accept the lockout risk:
 
 ```bash
-./forge.sh install --with ssh-hardening --i-understand-the-risk --yes
+./tuninforge.sh install --with ssh-hardening --i-understand-the-risk --yes
 ```
 
 Even with `--yes`, this is dangerous on a remote box — you won't be present to
@@ -84,7 +84,7 @@ command depends on how hardening was applied:
 **Modern Ubuntu (drop-in layout)** — just remove the drop-in:
 
 ```bash
-sudo rm -f /etc/ssh/sshd_config.d/00-forge-hardening.conf && sudo systemctl reload ssh
+sudo rm -f /etc/ssh/sshd_config.d/00-tuninforge-hardening.conf && sudo systemctl reload ssh
 ```
 
 **Legacy layout (main file edited)** — restore the backup:
@@ -99,7 +99,7 @@ run the same command.
 ## Root recovery access
 
 If you need to keep root reachable by key (e.g. break-glass), set in
-`forge.config.yaml`:
+`tuninforge.config.yaml`:
 
 ```yaml
 access:

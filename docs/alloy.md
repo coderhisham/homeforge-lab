@@ -11,7 +11,7 @@ added services show up in Grafana with no extra setup.
 ## Why Alloy instead of Promtail
 
 Promtail is EOL: no more updates or security fixes, and Grafana has folded all
-future log-collection work into Alloy. homelab-forge uses Alloy so the logging
+future log-collection work into Alloy. tuninforge uses Alloy so the logging
 pipeline stays supported. It keeps the **same Loki labels** the old Promtail
 config produced (`container`, `compose_project`, `compose_service`, and
 `job="containers"`), so existing Grafana panels and LogQL queries work unchanged.
@@ -27,7 +27,7 @@ config produced (`container`, `compose_project`, `compose_service`, and
 
 ## Networking & safety
 
-- `forge_internal` — pushes to Loki privately. No published ports.
+- `tuninforge_internal` — pushes to Loki privately. No published ports.
 - Read-only Docker socket + container-log mounts (discovery + reading only), but
   note that socket access is inherently powerful.
 - Stateless shipper (a WAL/positions dir persists) — Watchtower opt-in.
@@ -43,8 +43,8 @@ config produced (`container`, `compose_project`, `compose_service`, and
 
 | Symptom | Cause / fix |
 |---|---|
-| No logs in Loki | Alloy can't reach Loki, or the socket/log mounts are missing. Check `docker logs forge_alloy`. |
-| Config error on start | `config.alloy` syntax issue. Alloy prints the offending block; check `docker logs forge_alloy`. |
+| No logs in Loki | Alloy can't reach Loki, or the socket/log mounts are missing. Check `docker logs tuninforge_alloy`. |
+| Config error on start | `config.alloy` syntax issue. Alloy prints the offending block; check `docker logs tuninforge_alloy`. |
 | Some containers missing | They may use a non-json-file Docker log driver. Confirm the Docker log driver. |
 | `pull` fails | Bump the `grafana/alloy` tag in the compose file to a current one from Docker Hub. |
 

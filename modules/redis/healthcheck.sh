@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # modules/redis/healthcheck.sh — verify Redis is up and authenticating.
-# Exit 0 = healthy. Called by `forge.sh status` and after deploy.
+# Exit 0 = healthy. Called by `tuninforge.sh status` and after deploy.
 
 set -euo pipefail
 
-CONTAINER="forge_redis"
+CONTAINER="tuninforge_redis"
 
 _dk() {
   if docker info >/dev/null 2>&1; then docker "$@";

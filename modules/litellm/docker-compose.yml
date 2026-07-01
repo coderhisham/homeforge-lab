@@ -1,9 +1,9 @@
 # modules/litellm/docker-compose.yml
-# LiteLLM for homelab-forge — a unified gateway (OpenAI-compatible API) in front
+# LiteLLM for tuninforge — a unified gateway (OpenAI-compatible API) in front
 # of Ollama and any external providers (OpenAI, Gemini, Anthropic, …).
 #
-# Networking: BOTH networks. forge_internal so apps call it at
-# http://litellm:4000; forge_public so Caddy fronts it at a *.ts.net name.
+# Networking: BOTH networks. tuninforge_internal so apps call it at
+# http://litellm:4000; tuninforge_public so Caddy fronts it at a *.ts.net name.
 #
 # Auth: LITELLM_MASTER_KEY guards the gateway; clients send it as the API key.
 # Provider keys (OpenAI/Gemini/etc.) are optional and read from .env by name;
@@ -19,7 +19,7 @@
 services:
   litellm:
     image: ghcr.io/berriai/litellm:main-stable
-    container_name: forge_litellm
+    container_name: tuninforge_litellm
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
@@ -31,13 +31,13 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml:ro
     networks:
-      - forge_internal
-      - forge_public
+      - tuninforge_internal
+      - tuninforge_public
     labels:
       com.centurylinklabs.watchtower.enable: "true"
     healthcheck:
       # LiteLLM exposes /health/liveliness. The image is Python-based; if the
-      # healthcheck tool is missing on your build, forge's liveness fallback and
+      # healthcheck tool is missing on your build, tuninforge's liveness fallback and
       # healthcheck.sh (which probes from a curl container) still verify it.
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\""]
       interval: 15s
@@ -46,9 +46,9 @@ services:
       start_period: 20s
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
-  forge_public:
+    name: tuninforge_internal
+  tuninforge_public:
     external: true
-    name: forge_public
+    name: tuninforge_public

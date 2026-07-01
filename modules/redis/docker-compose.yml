@@ -1,7 +1,7 @@
 # modules/redis/docker-compose.yml
-# Redis for homelab-forge — in-memory cache / queue.
+# Redis for tuninforge — in-memory cache / queue.
 #
-# Isolation: forge_internal ONLY (no public exposure, no published ports).
+# Isolation: tuninforge_internal ONLY (no public exposure, no published ports).
 # Auth: requirepass is set from REDIS_PASSWORD; clients must AUTH.
 # Persistence: appendonly on, so a restart doesn't lose queued data.
 # Stateful: NO watchtower label — update deliberately after a backup.
@@ -9,7 +9,7 @@
 services:
   redis:
     image: redis:8-alpine
-    container_name: forge_redis
+    container_name: tuninforge_redis
     restart: unless-stopped
     # Password comes from the environment; --requirepass wires it into the server.
     # Using sh -c so the env var expands inside the container at start.
@@ -19,7 +19,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - forge_internal
+      - tuninforge_internal
     healthcheck:
       # redis-cli ships in the image. AUTH via env, then PING must return PONG.
       test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
@@ -30,9 +30,9 @@ services:
 
 volumes:
   redis_data:
-    name: forge_redis_data
+    name: tuninforge_redis_data
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
+    name: tuninforge_internal

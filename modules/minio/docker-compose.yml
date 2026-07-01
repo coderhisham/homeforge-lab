@@ -1,8 +1,8 @@
 # modules/minio/docker-compose.yml
-# MinIO for homelab-forge — S3-compatible object storage.
+# MinIO for tuninforge — S3-compatible object storage.
 #
-# Networking: BOTH networks. forge_internal so in-cluster services can use it as
-# an S3 endpoint (http://minio:9000) with no public exposure; forge_public so
+# Networking: BOTH networks. tuninforge_internal so in-cluster services can use it as
+# an S3 endpoint (http://minio:9000) with no public exposure; tuninforge_public so
 # Caddy can front the web console at a *.ts.net name. No ports are published
 # directly — access is via Caddy (tailnet-only) or the internal network.
 #
@@ -13,14 +13,14 @@
 #      from training knowledge; if `pull` fails, bump it to a current release
 #      (https://hub.docker.com/r/minio/minio/tags). Failure is loud, not silent.
 #   2. Healthcheck: uses `mc ready local` — MinIO's documented healthcheck; `mc`
-#      ships in the server image. If your image lacks it, forge's liveness
+#      ships in the server image. If your image lacks it, tuninforge's liveness
 #      fallback (running+stable) still verifies the container, and
 #      healthcheck.sh probes the HTTP health endpoint from the host.
 
 services:
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z   # minio/minio (docker.io) archived Apr 2026 — this is the last VM-validated community tag; the RELEASE line is effectively frozen. New dev moved to AIStor (dl.min.io); evaluate a maintained image/fork before bumping.
-    container_name: forge_minio
+    container_name: tuninforge_minio
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -31,8 +31,8 @@ services:
     volumes:
       - minio_data:/data
     networks:
-      - forge_internal
-      - forge_public
+      - tuninforge_internal
+      - tuninforge_public
     healthcheck:
       # MinIO's documented healthcheck. See the VERIFY note above.
       test: ["CMD", "mc", "ready", "local"]
@@ -43,12 +43,12 @@ services:
 
 volumes:
   minio_data:
-    name: forge_minio_data
+    name: tuninforge_minio_data
 
 networks:
-  forge_internal:
+  tuninforge_internal:
     external: true
-    name: forge_internal
-  forge_public:
+    name: tuninforge_internal
+  tuninforge_public:
     external: true
-    name: forge_public
+    name: tuninforge_public

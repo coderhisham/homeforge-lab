@@ -10,7 +10,7 @@
 # user BEFORE running — never piped straight into sh. The user confirms first.
 #
 # Idempotent: if Docker + Compose already work, it verifies and exits without
-# reinstalling. Honors DRY_RUN and FORGE_ASSUME_YES.
+# reinstalling. Honors DRY_RUN and TUNINFORGE_ASSUME_YES.
 #
 # After install it adds the invoking (sudo) user to the 'docker' group so they
 # can run docker without sudo — this requires a re-login to take effect, which
@@ -18,9 +18,9 @@
 
 set -euo pipefail
 
-: "${FORGE_LIB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)}"
+: "${TUNINFORGE_LIB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" && pwd)}"
 # shellcheck source=../../lib/log.sh
-source "$FORGE_LIB/log.sh"
+source "$TUNINFORGE_LIB/log.sh"
 
 DOCKER_INSTALL_URL="https://get.docker.com"
 
@@ -107,7 +107,7 @@ add_user_to_group() {
     "ADDED '$u' TO THE 'docker' GROUP." \
     "This takes effect on your NEXT login only." \
     "Log out and back in (or run: newgrp docker) before running docker" \
-    "without sudo. homelab-forge will use sudo automatically until then."
+    "without sudo. tuninforge will use sudo automatically until then."
 }
 
 # --- Verify ------------------------------------------------------------------
