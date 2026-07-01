@@ -247,29 +247,147 @@ cmd_install() {
 }
 
 # =============================================================================
-# Subcommand: add / remove / status (skeletons — full logic in later phases)
+# Subcommand: add
 # =============================================================================
+# Add service(s) to an already-running stack without disturbing what's installed.
+# Resolves dependencies (auto-adding any missing), then deploys each in order.
 cmd_add() {
   [[ ${#POSITIONAL[@]} -gt 0 ]] || log_die "add: name at least one service, e.g. ./forge.sh add qdrant"
-  log_warn "'add' wiring lands in Phase 1 with the service registry."
-  log_info "Requested: ${POSITIONAL[*]}"
+  require_linux
+
+  # Validate names.
+  local name bad=""
+  for name in "${POSITIONAL[@]}"; do
+    case "$name" in tailscale|ssh-hardening)
+      log_warn "'$name' is an access-layer module; add it via: ./forge.sh install --with $name"
+      continue ;;
+    esac
+    forge_is_service "$name" || bad="$bad $name"
+  done
+  [[ -n "${bad// }" ]] && { log_error "Unknown service(s):$bad"; log_info "Valid: $(forge_all_services | tr '\n' ' ')"; return 1; }
+
+  # Resolve deps + order (Bash authoritative), then note any auto-added.
+  local requested; requested="$(printf '%s ' "${POSITIONAL[@]}")"
+  local added
+  # shellcheck disable=SC2086
+  added="$(forge_added_deps $requested)"
+  [[ -n "${added// }" ]] && log_info "Auto-adding dependencies:$added"
+  # shellcheck disable=SC2086
+  local order; order="$(forge_install_order $requested)"
+  # Only deploy the non-access services.
+  order="$(tr ' ' '\n' <<<"$order" | grep -vxE 'tailscale|ssh-hardening' || true)"
+  log_step "Adding: $(tr '\n' ' ' <<<"$order")"
+
+  local svc rc=0
+  for svc in $order; do
+    [[ -f "$FORGE_MODULES/$svc/docker-compose.yml" ]] || { log_warn "No module for '$svc' yet; skipping."; continue; }
+    forge_deploy_module "$svc" || { rc=1; log_error "'$svc' did not become healthy."; }
+  done
+  secrets_flush_notice
+  [[ "$rc" -eq 0 ]] && log_ok "add complete." || return 1
 }
 
+# =============================================================================
+# Subcommand: remove
+# =============================================================================
+# Stop and remove service(s). Confirms first; supports --dry-run and
+# --purge-volumes. Warns when removing something other installed services depend
+# on, and warns loudly before deleting stateful data.
 cmd_remove() {
   [[ ${#POSITIONAL[@]} -gt 0 ]] || log_die "remove: name at least one service, e.g. ./forge.sh remove qdrant"
-  log_warn "'remove' wiring lands in Phase 1 with the service registry."
-  log_info "Requested: ${POSITIONAL[*]} (purge-volumes=$PURGE_VOLUMES, dry-run=$DRY_RUN)"
+
+  local name bad=""
+  for name in "${POSITIONAL[@]}"; do forge_is_service "$name" || bad="$bad $name"; done
+  [[ -n "${bad// }" ]] && { log_error "Unknown service(s):$bad"; return 1; }
+
+  # Warn if a named service is a dependency of another INSTALLED service.
+  local svc dependents installed_all
+  installed_all="$(_installed_services)"
+  for svc in "${POSITIONAL[@]}"; do
+    # shellcheck disable=SC2086
+    dependents="$(forge_dependents_of "$svc" $installed_all)"
+    # Filter dependents down to ones NOT also being removed.
+    local d filtered=""
+    for d in $dependents; do
+      case " ${POSITIONAL[*]} " in *" $d "*) ;; *) filtered="$filtered $d" ;; esac
+    done
+    [[ -n "${filtered// }" ]] && log_warn "Removing '$svc' may break installed dependents:$filtered"
+  done
+
+  # Loud warning for stateful services (data loss if volumes purged).
+  if [[ "$PURGE_VOLUMES" == "1" ]]; then
+    local stateful=""
+    for svc in "${POSITIONAL[@]}"; do
+      grep -q 'com.centurylinklabs.watchtower.enable' "$FORGE_MODULES/$svc/docker-compose.yml" 2>/dev/null || stateful="$stateful $svc"
+    done
+    log_alert \
+      "--purge-volumes will DELETE NAMED VOLUMES for:${POSITIONAL[*]}" \
+      "This is IRREVERSIBLE. Stateful data (databases, objects, vectors) is lost." \
+      "${stateful:+Stateful services affected:$stateful}"
+  fi
+
+  if [[ "$DRY_RUN" != "1" ]]; then
+    confirm "Remove: ${POSITIONAL[*]} (purge-volumes=$PURGE_VOLUMES)?" no || { log_info "Cancelled."; return 0; }
+  fi
+
+  local purge_flag=""; [[ "$PURGE_VOLUMES" == "1" ]] && purge_flag="--purge-volumes"
+  for svc in "${POSITIONAL[@]}"; do
+    forge_teardown_module "$svc" "$purge_flag"
+  done
+  log_ok "remove complete."
+}
+
+# =============================================================================
+# Subcommand: status
+# =============================================================================
+# _installed_services -> newline list of stack services whose main container exists.
+_installed_services() {
+  local svc
+  while IFS= read -r svc; do
+    case "$svc" in tailscale|ssh-hardening) continue ;; esac
+    if forge_docker_q inspect "forge_$svc" >/dev/null 2>&1; then echo "$svc"; fi
+  done < <(forge_all_services)
 }
 
 cmd_status() {
   log_step "homelab-forge status"
-  log_info "Full status table (installed vs available + health) lands in Phase 1."
-  # Phase 0: report access-layer state we can cheaply detect.
+
+  # Access layer (no containers — detect by artifact).
+  printf '\n%s\n' "${C_BOLD}Access${C_RESET}" >&2
   if command -v tailscale >/dev/null 2>&1; then
-    log_ok  "tailscale: installed"
+    printf '  %s tailscale       installed\n' "${C_GREEN}●${C_RESET}" >&2
   else
-    log_info "tailscale: not installed"
+    printf '  %s tailscale       not installed\n' "${C_DIM}○${C_RESET}" >&2
   fi
+  if [[ -f /etc/ssh/sshd_config.d/00-forge-hardening.conf ]]; then
+    printf '  %s ssh-hardening   applied (drop-in present)\n' "${C_GREEN}●${C_RESET}" >&2
+  else
+    printf '  %s ssh-hardening   not applied\n' "${C_DIM}○${C_RESET}" >&2
+  fi
+
+  # Stack services by layer: installed? running? health?
+  local layer svc cname state health mark note
+  while IFS= read -r layer; do
+    [[ "$layer" == "access" ]] && continue
+    local any=0
+    while IFS= read -r svc; do
+      [[ -z "$svc" ]] && continue
+      [[ $any -eq 0 ]] && { printf '\n%s\n' "${C_BOLD}$(forge_layer_title "$layer")${C_RESET}" >&2; any=1; }
+      cname="forge_$svc"
+      if ! forge_docker_q inspect "$cname" >/dev/null 2>&1; then
+        printf '  %s %-14s available (not installed)\n' "${C_DIM}○${C_RESET}" "$svc" >&2
+        continue
+      fi
+      state="$(forge_docker_q inspect --format '{{.State.Status}}' "$cname" 2>/dev/null || echo '?')"
+      health="$(forge_docker_q inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}' "$cname" 2>/dev/null || echo '-')"
+      if [[ "$state" == "running" ]]; then mark="${C_GREEN}●${C_RESET}"; else mark="${C_RED}●${C_RESET}"; fi
+      note="$state"; [[ "$health" != "-" ]] && note="$state, health=$health"
+      printf '  %s %-14s %s\n' "$mark" "$svc" "$note" >&2
+    done < <(forge_services_in_layer "$layer")
+  done < <(forge_layers)
+
+  printf '\n' >&2
+  log_info "Per-service deep check: ./modules/<service>/healthcheck.sh"
 }
 
 # --- Dispatch ----------------------------------------------------------------

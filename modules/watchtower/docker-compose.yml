@@ -1,0 +1,40 @@
+# modules/watchtower/docker-compose.yml
+# Watchtower for homelab-forge — opt-in automatic container updates.
+#
+# ⚠ SCOPING (the whole point): WATCHTOWER_LABEL_ENABLE=true means Watchtower
+# ONLY updates containers that explicitly carry the label
+#   com.centurylinklabs.watchtower.enable=true
+# Every stateless service in forge sets that label (Caddy, Portainer, n8n,
+# Ollama, LiteLLM, Promtail, Grafana). STATEFUL services deliberately OMIT it
+# (Postgres, Redis, MinIO, Qdrant, Prometheus, Loki) so their data is never put
+# at risk by an unattended image bump — those you update manually, after a
+# backup. Watchtower itself is safe to auto-update (opt-in below).
+#
+# Needs the Docker socket to inspect + recreate containers. Socket access is
+# root-equivalent; Watchtower is not exposed on any network port.
+
+services:
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: forge_watchtower
+    restart: unless-stopped
+    environment:
+      # The scoping switch: only labeled containers are considered.
+      WATCHTOWER_LABEL_ENABLE: "true"
+      # Clean up old images after updating, to save disk.
+      WATCHTOWER_CLEANUP: "true"
+      # Poll interval in seconds (default daily). Tunable via .env.
+      WATCHTOWER_POLL_INTERVAL: "${WATCHTOWER_POLL_INTERVAL:-86400}"
+      # Don't restart everything on boot; wait for the first poll.
+      WATCHTOWER_INCLUDE_RESTARTING: "false"
+      # Optional shoutrrr notification URL (email/slack/etc.); empty = none.
+      WATCHTOWER_NOTIFICATION_URL: "${WATCHTOWER_NOTIFICATION_URL:-}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      # Watchtower updates itself too (it is stateless).
+      com.centurylinklabs.watchtower.enable: "true"
+    # No network + no ports: it talks to Docker via the socket only.
+    # No in-container healthcheck (minimal image); healthcheck.sh checks run-state.
+
+networks: {}
