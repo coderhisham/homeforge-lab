@@ -1,0 +1,61 @@
+# modules/caddy/docker-compose.yml
+# Reverse proxy + automatic TLS for homelab-forge.
+#
+# TLS: Caddy 2.5+ obtains HTTPS certificates for the host's *.ts.net MagicDNS
+# name directly from the local tailscaled — no ACME, no open ports, no public
+# domain. That works because we mount the tailscaled socket into the container
+# (Caddy runs as root here, so TS_PERMIT_CERT_UID is unnecessary). Requires
+# MagicDNS + HTTPS certificates enabled in the tailnet admin console.
+#
+# Networking: Caddy joins forge_public and is the single entrypoint other
+# Caddy-fronted services are reverse-proxied through. Downstream modules append
+# their own site blocks under conf.d/ (mounted below) in later phases.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: forge_caddy
+    restart: unless-stopped
+    # Ports are published so the box is reachable at its Tailscale IP. On a
+    # tailnet-only homelab this is the intent; see docs for locking 80/443 to
+    # the tailscale0 interface if the box also has a public NIC.
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      # The box's MagicDNS name, e.g. myhost.tailnet-1234.ts.net. Consumed by
+      # the Caddyfile. forge.sh fills this from `tailscale status` when possible.
+      FORGE_TS_HOSTNAME: "${FORGE_TS_HOSTNAME:-}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./conf.d:/etc/caddy/conf.d:ro          # per-service site blocks (later phases)
+      - caddy_data:/data                        # certificates + ACME/TS state (persist!)
+      - caddy_config:/config
+      # tailscaled socket: lets Caddy fetch the *.ts.net certificate.
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+    networks:
+      - forge_public
+    labels:
+      # Opt in to Watchtower auto-updates (Caddy is safe to auto-update; it is
+      # not a stateful data service). Stateful services omit this label.
+      com.centurylinklabs.watchtower.enable: "true"
+    healthcheck:
+      # Caddy's admin API listens on localhost:2019. The alpine image ships
+      # busybox wget. If your image lacks it, see docs/caddy.md for alternates.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  caddy_data:
+    name: forge_caddy_data
+  caddy_config:
+    name: forge_caddy_config
+
+networks:
+  forge_public:
+    external: true
+    name: forge_public

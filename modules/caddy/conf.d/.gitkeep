@@ -1,0 +1,4 @@
+# Per-service Caddy site blocks are dropped here by their modules (e.g.
+# n8n writes n8n.caddy). This file keeps the directory in git so the compose
+# bind-mount target exists on a fresh clone. It is not loaded by Caddy
+# (only *.caddy files are imported).

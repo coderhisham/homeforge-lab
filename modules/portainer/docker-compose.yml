@@ -1,0 +1,49 @@
+# modules/portainer/docker-compose.yml
+# Docker management web UI for homelab-forge.
+#
+# ⚠ SECURITY — READ THIS:
+#   • Portainer mounts the Docker socket (/var/run/docker.sock). That grants it
+#     FULL control of the Docker daemon, which is root-equivalent on the host.
+#     Anyone who reaches the Portainer UI effectively controls the machine.
+#   • Therefore Portainer MUST be reachable over the tailnet ONLY, never the
+#     public internet. It joins forge_public so Caddy can proxy it at a
+#     *.ts.net name; do NOT publish its port on a public interface.
+#   • Admin bootstrap: on first launch Portainer shows an admin-account setup
+#     screen. Open it over Tailscale and set a strong password immediately —
+#     Portainer disables initial setup a short time after first boot, so do it
+#     promptly. (No preset password is baked in; see docs/portainer.md.)
+#
+# Networking: joins forge_public (Caddy-fronted). It talks to Docker via the
+# socket, not the network, so it does not need forge_internal.
+
+services:
+  portainer:
+    image: portainer/portainer-ce:2.21.4   # pinned; update deliberately
+    container_name: forge_portainer
+    restart: unless-stopped
+    # NO published ports by default: access is via Caddy over the tailnet.
+    # (Add a port mapping only if you understand the exposure — see docs.)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # ro reduces (not removes) risk
+      - portainer_data:/data
+    networks:
+      - forge_public
+    labels:
+      # Portainer is not a stateful data service; safe to auto-update. Opt in.
+      com.centurylinklabs.watchtower.enable: "true"
+    healthcheck:
+      # Portainer serves its UI/API on :9000 (HTTP) inside the container.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000/api/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  portainer_data:
+    name: forge_portainer_data
+
+networks:
+  forge_public:
+    external: true
+    name: forge_public

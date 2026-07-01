@@ -1,0 +1,32 @@
+# modules/caddy/Caddyfile — homelab-forge reverse proxy.
+#
+# TLS model: the site address is the box's *.ts.net MagicDNS name. When Caddy
+# 2.5+ serves an HTTPS request for a *.ts.net host, it fetches the certificate
+# from the local tailscaled (mounted socket) — no ACME, no open ports. Requires
+# MagicDNS + HTTPS certificates enabled in the tailnet admin console.
+#
+# Per-service routes are added by their modules as files under conf.d/ and
+# pulled in via the import below, so this base file rarely changes.
+
+{
+	# Global options.
+	# admin endpoint is used by the container healthcheck (localhost:2019).
+	admin localhost:2019
+	# Uncomment for verbose TLS/issuance debugging:
+	# debug
+}
+
+# Landing site on the box's MagicDNS name. FORGE_TS_HOSTNAME is provided by the
+# environment (forge.sh derives it from `tailscale status`). If it is empty,
+# Caddy still starts and serves this block on :443 for any host, so the proxy is
+# never dead — it just won't have a MagicDNS cert until the hostname is set.
+{$FORGE_TS_HOSTNAME} {
+	# Simple health/landing response so hitting the host root confirms Caddy is
+	# up before any downstream service is wired in.
+	respond /healthz "ok" 200
+	respond "homelab-forge: Caddy is running. Services will appear here as you add them." 200
+}
+
+# Pull in per-service site blocks (n8n.<host>, grafana.<host>, …) dropped by
+# their modules. Safe when empty.
+import /etc/caddy/conf.d/*.caddy

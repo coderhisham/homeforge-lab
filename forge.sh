@@ -32,6 +32,16 @@ export FORGE_MODULES="$FORGE_ROOT/modules"
 source "$FORGE_LIB/log.sh"
 # shellcheck source=lib/deps.sh
 source "$FORGE_LIB/deps.sh"
+# shellcheck source=lib/secrets.sh
+source "$FORGE_LIB/secrets.sh"
+# shellcheck source=lib/env.sh
+source "$FORGE_LIB/env.sh"
+# shellcheck source=lib/network.sh
+source "$FORGE_LIB/network.sh"
+# shellcheck source=lib/health.sh
+source "$FORGE_LIB/health.sh"
+# shellcheck source=lib/compose.sh
+source "$FORGE_LIB/compose.sh"
 # shellcheck source=lib/tui.sh
 source "$FORGE_LIB/tui.sh"
 
@@ -183,24 +193,46 @@ cmd_install() {
     esac
   done
 
-  # Non-access services: modules are implemented phase by phase. Report which
-  # selected services already have a module vs. which are still pending.
-  local pending=""
+  # Non-access services: deploy each module that exists via compose. Modules
+  # not yet implemented are reported as pending (arriving in a later phase).
+  local -a to_deploy=()
+  local pending="" deploy_rc=0
   for svc in $FORGE_SELECTION; do
     case "$svc" in
       tailscale|ssh-hardening) continue ;;
     esac
     if [[ -f "$FORGE_MODULES/$svc/docker-compose.yml" ]]; then
-      log_warn "Module '$svc' is present but its installer wiring is not active yet."
+      to_deploy+=("$svc")
     else
       pending="$pending $svc"
     fi
   done
-  if [[ -n "${pending// }" ]]; then
-    log_warn "Selected, but their modules arrive in a later phase:${pending}"
-    log_info "Access layer is complete. Service-stack modules (Caddy, Portainer, …) are next."
+
+  if [[ "${#to_deploy[@]}" -gt 0 ]]; then
+    # Detect the box's MagicDNS name once so Caddy can request its *.ts.net cert.
+    if [[ -z "${FORGE_TS_HOSTNAME:-}" ]] && command -v tailscale >/dev/null 2>&1; then
+      FORGE_TS_HOSTNAME="$(tailscale status --json 2>/dev/null \
+        | grep -o '"DNSName":"[^"]*"' | head -1 | sed 's/.*:"//;s/"//;s/\.$//' || true)"
+      export FORGE_TS_HOSTNAME
+      [[ -n "$FORGE_TS_HOSTNAME" ]] && log_info "Caddy will use MagicDNS name: $FORGE_TS_HOSTNAME"
+    fi
+
+    for svc in "${to_deploy[@]}"; do
+      forge_deploy_module "$svc" || { deploy_rc=1; log_error "Deployment of '$svc' did not reach healthy."; }
+    done
+
+    # Show any secrets generated across all modules exactly once.
+    secrets_flush_notice
   fi
 
+  if [[ -n "${pending// }" ]]; then
+    log_warn "Selected, but their modules arrive in a later phase:${pending}"
+  fi
+
+  if [[ "$deploy_rc" -ne 0 ]]; then
+    log_error "One or more services did not become healthy. Check logs with: docker logs <container>"
+    return 1
+  fi
   log_ok "install run finished."
 }
 
