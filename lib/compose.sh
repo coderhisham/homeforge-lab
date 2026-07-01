@@ -86,9 +86,10 @@ forge_module_containers() {
 # forge_deploy_module <module> — the full, idempotent bring-up for one module:
 #   1. materialize .env (generate secrets on first run)
 #   2. ensure shared networks exist
-#   3. pull images
-#   4. up -d
-#   5. wait for health, report PASS/FAIL
+#   3. run optional pre-deploy setup.sh (cross-service wiring, e.g. create a DB)
+#   4. pull images
+#   5. up -d
+#   6. wait for health, report PASS/FAIL
 # Returns non-zero if the module does not end up healthy.
 forge_deploy_module() {
   local module="$1"
@@ -104,11 +105,21 @@ forge_deploy_module() {
   # 2. networks.
   forge_ensure_networks
 
-  # 3. pull (best-effort; a pull failure shouldn't abort if an image is cached).
+  # 3. Optional pre-deploy hook. A module ships setup.sh when it needs to wire
+  #    into another service before starting (e.g. n8n ensuring its Postgres
+  #    database + reading Postgres's generated password via forge_get_env). It
+  #    runs with the forge libs sourced and honors DRY_RUN itself.
+  if [[ -f "$dir/setup.sh" ]]; then
+    log_info "Running pre-deploy setup for '$module'…"
+    FORGE_LIB="$FORGE_LIB" FORGE_MODULES="$FORGE_MODULES" DRY_RUN="${DRY_RUN:-0}" \
+      bash "$dir/setup.sh" || log_die "Pre-deploy setup for '$module' failed."
+  fi
+
+  # 4. pull (best-effort; a pull failure shouldn't abort if an image is cached).
   log_info "Pulling images for '$module'…"
   forge_compose "$module" pull || log_warn "Pull reported issues for '$module'; continuing (image may be cached)."
 
-  # 4. up.
+  # 5. up.
   log_info "Starting '$module'…"
   forge_compose "$module" up -d || log_die "compose up failed for '$module'."
 

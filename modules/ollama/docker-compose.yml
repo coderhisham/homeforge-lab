@@ -1,0 +1,54 @@
+# modules/ollama/docker-compose.yml
+# Ollama for homelab-forge — local LLM runtime.
+#
+# ⚠ DISK: models are 4–40GB EACH and live in the forge_ollama_data volume. On a
+# constrained SSD this is the biggest consumer in the whole stack. Unchecked by
+# default in the selection menu for exactly this reason.
+#
+# Networking: BOTH networks. forge_internal so LiteLLM/apps reach it at
+# http://ollama:11434; forge_public so Caddy can front the API at a *.ts.net
+# name. No ports published directly.
+#
+# GPU: this compose runs CPU-only by DEFAULT so it starts on any box. Adding GPU
+# device reservations unconditionally would make the container fail to start on
+# a machine without an NVIDIA runtime. To enable GPU, use the documented
+# override (see docs/ollama.md) — never assume the hardware is present.
+#
+# Update: watchtower-enabled — the runtime is safe to auto-update; models
+# persist in the volume across updates.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: forge_ollama
+    restart: unless-stopped
+    environment:
+      # Bind all interfaces inside the container so other services can reach it.
+      OLLAMA_HOST: "0.0.0.0:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - forge_internal
+      - forge_public
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    healthcheck:
+      # The `ollama` CLI ships in the image (guaranteed present). `ollama list`
+      # succeeds only once the server is up. See docs for the VM-verify note.
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  ollama_data:
+    name: forge_ollama_data
+
+networks:
+  forge_internal:
+    external: true
+    name: forge_internal
+  forge_public:
+    external: true
+    name: forge_public

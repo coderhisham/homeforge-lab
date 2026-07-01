@@ -1,0 +1,41 @@
+# modules/litellm/config.yaml — LiteLLM model routing.
+#
+# Maps friendly model names to backends. By default it routes to Ollama running
+# in the stack (http://ollama:11434 on the internal network). Uncomment the
+# external provider blocks and set the matching *_API_KEY in .env to add cloud
+# models. Only models listed here are exposed by the gateway.
+#
+# Docs: https://docs.litellm.ai/docs/proxy/configs
+
+model_list:
+  # --- Local models via Ollama (in-stack) ---
+  # Requires the ollama module running with the model pulled (`ollama pull …`).
+  - model_name: llama3.2
+    litellm_params:
+      model: ollama/llama3.2
+      api_base: http://ollama:11434
+
+  - model_name: qwen2.5
+    litellm_params:
+      model: ollama/qwen2.5
+      api_base: http://ollama:11434
+
+  # --- External providers (optional) ---
+  # Uncomment and set the corresponding key in modules/litellm/.env.
+  # - model_name: gpt-4o
+  #   litellm_params:
+  #     model: openai/gpt-4o
+  #     api_key: os.environ/OPENAI_API_KEY
+  #
+  # - model_name: gemini-1.5-pro
+  #   litellm_params:
+  #     model: gemini/gemini-1.5-pro
+  #     api_key: os.environ/GEMINI_API_KEY
+
+litellm_settings:
+  # Don't fail startup if a provider is briefly unreachable; fail per-request.
+  drop_params: true
+
+general_settings:
+  # The master key (from LITELLM_MASTER_KEY) gates the admin/API surface.
+  master_key: os.environ/LITELLM_MASTER_KEY

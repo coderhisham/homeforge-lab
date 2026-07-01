@@ -1,0 +1,54 @@
+# modules/litellm/docker-compose.yml
+# LiteLLM for homelab-forge — a unified gateway (OpenAI-compatible API) in front
+# of Ollama and any external providers (OpenAI, Gemini, Anthropic, …).
+#
+# Networking: BOTH networks. forge_internal so apps call it at
+# http://litellm:4000; forge_public so Caddy fronts it at a *.ts.net name.
+#
+# Auth: LITELLM_MASTER_KEY guards the gateway; clients send it as the API key.
+# Provider keys (OpenAI/Gemini/etc.) are optional and read from .env by name;
+# only the providers you configure in config.yaml are used.
+#
+# Ollama is a RUNTIME dependency (LiteLLM proxies to it per request), not a
+# startup one — LiteLLM boots fine without Ollama and only a request to an
+# ollama-backed model fails if Ollama is down. So no compose depends_on here.
+#
+# Update: watchtower-enabled (stateless gateway; config lives in the mounted
+# file, not a data volume).
+
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: forge_litellm
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY must be set (see .env)}"
+      # Optional external provider keys — passed through if set, ignored if empty.
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    networks:
+      - forge_internal
+      - forge_public
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    healthcheck:
+      # LiteLLM exposes /health/liveliness. The image is Python-based; if the
+      # healthcheck tool is missing on your build, forge's liveness fallback and
+      # healthcheck.sh (which probes from a curl container) still verify it.
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  forge_internal:
+    external: true
+    name: forge_internal
+  forge_public:
+    external: true
+    name: forge_public

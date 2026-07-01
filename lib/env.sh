@@ -126,3 +126,25 @@ env_materialize() {
     log_debug "env: $svc/.env already complete; no changes."
   fi
 }
+
+# --- Cross-service secret access --------------------------------------------
+# forge_get_env <module> <key> -> print the value of <key> from another module's
+# materialized .env (e.g. read Postgres's generated password for n8n's DB URL).
+# Prints nothing and returns 1 if the file or key is absent.
+#
+# This is how one module consumes another's generated secret WITHOUT copying or
+# re-generating it — lib/env.sh (this file) remains the single writer of secrets.
+forge_get_env() {
+  local module="$1" key="$2"
+  local envfile="${FORGE_MODULES:-modules}/$module/.env"
+  [[ -f "$envfile" ]] || return 1
+  # Read the last active assignment for the key; strip optional surrounding
+  # quotes. Never sourced (avoids executing arbitrary content).
+  local line val
+  line="$(grep -E "^[[:space:]]*${key}=" "$envfile" | tail -1)" || return 1
+  [[ -n "$line" ]] || return 1
+  val="${line#*=}"
+  val="${val%\"}"; val="${val#\"}"
+  val="${val%\'}"; val="${val#\'}"
+  printf '%s' "$val"
+}
