@@ -7,8 +7,9 @@ captures the data layer; `scripts/restore.sh` brings it back. Both use
 ## What gets backed up
 
 - **A Postgres logical dump** (`pg_dumpall`) when `forge_postgres` is running —
-  the authoritative restore source (a raw copy of a live DB volume can be
-  inconsistent).
+  kept for manual and cross-version recovery. (On a normal restore the Postgres
+  data **volume** is the source; the dump is only auto-applied as a fallback if
+  the volume is absent from the snapshot — applying both would duplicate rows.)
 - **Every `forge_*_data` Docker volume** (postgres, redis, minio, qdrant, caddy,
   portainer, …), tarred via a throwaway alpine container.
 

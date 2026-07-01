@@ -143,7 +143,10 @@ main() {
     fi
   done
 
-  # Restore each volume tarball present in the snapshot.
+  # Restore each volume tarball present in the snapshot. Track whether the
+  # Postgres volume specifically was restored — it determines how we handle the
+  # SQL dump below (we must NOT apply both, or rows get duplicated).
+  local pg_volume_restored=0
   if [[ "$DRY_RUN" == "1" ]]; then
     log_info "[dry-run] would restore each forge_*_data.tar from $staging/volumes/ into its volume."
   else
@@ -151,6 +154,7 @@ main() {
     for tar in "$staging"/volumes/*.tar; do
       [[ -e "$tar" ]] || { log_warn "No volume tarballs found in snapshot."; break; }
       vol="$(basename "$tar" .tar)"
+      [[ "$vol" == "forge_postgres_data" ]] && pg_volume_restored=1
       restore_volume "$vol" "$tar"
     done
   fi
@@ -163,12 +167,19 @@ main() {
     fi
   done
 
-  # Postgres: re-import the logical dump on top of the running container — this
-  # is the authoritative Postgres restore (more reliable than the raw volume).
+  # Postgres restore source — apply EXACTLY ONE, never both:
+  #   - If the postgres data VOLUME was restored above, that IS the restore.
+  #     Postgres runs WAL crash-recovery on start; re-importing the pg_dumpall
+  #     dump on top would re-run its INSERTs and DUPLICATE rows. So skip it.
+  #   - Only if the volume tar was absent from the snapshot do we fall back to
+  #     the logical dump. (The dump always stays in the backup for manual /
+  #     cross-version recovery — see docs/backup.md.)
   if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would re-import $staging/postgres/all.sql into forge_postgres via psql."
+    log_info "[dry-run] Postgres: would use the volume tar if present, else re-import all.sql."
+  elif [[ "$pg_volume_restored" == "1" ]]; then
+    log_info "Postgres restored from its data volume; skipping SQL dump to avoid duplicate rows."
   elif [[ -f "$staging/postgres/all.sql" ]] && _dk inspect forge_postgres >/dev/null 2>&1; then
-    log_info "Re-importing Postgres logical dump…"
+    log_info "No Postgres volume in snapshot; re-importing logical dump…"
     # Wait briefly for postgres to accept connections after restart.
     local i
     for i in $(seq 1 30); do _dk exec forge_postgres pg_isready -q 2>/dev/null && break; sleep 2; done

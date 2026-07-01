@@ -4,9 +4,10 @@
 # What it backs up:
 #   - Every Docker volume named forge_*_data (postgres, redis, minio, qdrant,
 #     caddy, portainer, …), tarred from a throwaway alpine container.
-#   - A Postgres logical dump (pg_dumpall) when forge_postgres is running — a
-#     live raw-volume copy of a running DB can be inconsistent, so the logical
-#     dump is the authoritative Postgres restore source.
+#   - A Postgres logical dump (pg_dumpall) when forge_postgres is running — kept
+#     for manual / cross-version recovery. On a normal restore the data VOLUME
+#     is the source; the dump is only auto-applied as a fallback when the volume
+#     is missing from the snapshot (applying both would duplicate rows).
 #
 # Repository (encrypted, deduplicated, by Restic):
 #   - Default: a LOCAL repo at $FORGE_BACKUP_REPO (default /var/lib/forge/restic).
@@ -128,7 +129,7 @@ forge_volumes() {
 # Stage: dump Postgres logically + copy each volume's contents into staging.
 stage_data() {
   local staging="$1"
-  # Postgres logical dump (authoritative for restore).
+  # Postgres logical dump (fallback restore source + manual/cross-version recovery).
   if _dk inspect --format '{{.State.Status}}' forge_postgres >/dev/null 2>&1; then
     log_info "Dumping Postgres (pg_dumpall)…"
     if [[ "$DRY_RUN" == "1" ]]; then

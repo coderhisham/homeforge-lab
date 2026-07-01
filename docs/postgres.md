@@ -45,7 +45,8 @@ docker exec -it forge_postgres psql -U forge -c '\l'  # list databases
 
 ## Backup / restore
 
-Covered by the stack backup: `scripts/backup.sh` takes a `pg_dumpall` logical
-dump (the authoritative restore source) **and** archives the data volume.
-Restore with `scripts/restore.sh` — it re-imports the SQL dump into the running
-container. See [backup.md](backup.md).
+Covered by the stack backup: `scripts/backup.sh` archives the data volume **and**
+takes a `pg_dumpall` logical dump (kept for manual / cross-version recovery).
+`scripts/restore.sh` restores the data volume as the primary source, and only
+falls back to re-importing the SQL dump if the volume is absent from the snapshot
+(applying both would duplicate rows). See [backup.md](backup.md).
