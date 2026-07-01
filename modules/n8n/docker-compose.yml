@@ -17,7 +17,7 @@
 
 services:
   n8n:
-    image: n8nio/n8n:latest   # ⚠ VM-verify: pin a specific tag for reproducibility
+    image: n8nio/n8n:1.118.1   # pinned for reproducibility (stable line; "latest" is not stable per n8n)
     container_name: forge_n8n
     restart: unless-stopped
     environment:

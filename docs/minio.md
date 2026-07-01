@@ -1,5 +1,22 @@
 # MinIO (data layer)
 
+> [!WARNING]
+> **MinIO Community Edition is effectively end-of-life (2026).** The
+> `minio/minio` GitHub repo was archived Apr 25 2026, and free community Docker
+> images stopped publishing (Oct 2025) — CE is now source-only. This module is
+> pinned to the **last working community image** (`RELEASE.2025-04-22T22-12-26Z`)
+> so existing setups keep running, but it will get **no updates or security
+> fixes**. The license is still AGPLv3.
+>
+> **Recommendation:** for a new deployment, or when you're ready to migrate,
+> replace this module with a maintained S3-compatible engine. Strongest
+> self-host options in 2026: **Garage** (simple, lightweight), **SeaweedFS**
+> (feature-rich), **RustFS**, or the **libreFS** MinIO fork. Note these are
+> different storage engines — moving means a **data migration** (copy buckets
+> via `mc mirror`/`rclone` to the new endpoint), not a tag swap. Adding one is a
+> new module per [CONTRIBUTING.md](../CONTRIBUTING.md). Tracking issue: decide
+> the target engine, then migrate.
+
 ## What it does
 
 S3-compatible object storage — a local, private replacement for AWS S3. Other
