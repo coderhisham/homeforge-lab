@@ -53,38 +53,51 @@ falls back to re-importing the SQL dump if the volume is absent from the snapsho
 
 ## ⚠ Major-version upgrade (e.g. 16 → 18)
 
-PostgreSQL stores its data in a format tied to the **major** version. The
-`postgres:18` binary will **refuse to start** on a data directory created by
-`postgres:16` — you'll see `database files are incompatible with server` in the
-logs and the container will crash-loop. A major bump is a **migration**, not a
-tag swap.
+A PostgreSQL data directory is tied to its **major** version — a newer binary
+won't start on an older data dir. A major bump is a **migration**, not a tag
+swap. Two things change going to 18:
+
+1. **Data format** — v18 can't read a v16 data dir; you migrate via dump/restore.
+2. **Mount path** — v18 images store data in a version-specific subdir and
+   require the volume mounted at **`/var/lib/postgresql`** (v16 used
+   `/var/lib/postgresql/data`). This repo's compose is already set for v18; a
+   v16 mount path makes v18 refuse to start (see docker-library/postgres#1259).
 
 If you're on a **fresh box** (no existing `forge_postgres_data` volume), there's
 nothing to do — 18 initializes cleanly.
 
-If you have **existing data on v16**, migrate via dump/restore before switching
-the image tag:
+If you have **existing data on v16**, migrate via dump/restore. **Do the steps
+in order and do NOT delete the dump until the restore is verified:**
 
 ```bash
-# 1. While STILL on the postgres:16 image, dump everything:
-docker exec forge_postgres sh -c 'pg_dumpall -U "$POSTGRES_USER"' > /tmp/pg16-dump.sql
+# 1. While STILL on the postgres:16 image, dump everything. Verify it's non-empty.
+docker exec forge_postgres sh -c 'pg_dumpall -U "$POSTGRES_USER"' > ~/pg16-dump.sql
+test -s ~/pg16-dump.sql && echo "dump OK ($(wc -l < ~/pg16-dump.sql) lines)" || echo "DUMP EMPTY — stop, do not proceed"
 
-# 2. Stop postgres and REMOVE ONLY its data volume (back it up first!):
-./forge.sh remove postgres              # keeps the volume
-docker volume rm forge_postgres_data    # deletes the v16 data dir
+# 2. Take a full stack backup too, as a safety net:
+sudo ./scripts/backup.sh
 
-# 3. Switch the image to postgres:18 (already done in this repo), then deploy —
-#    it initializes a fresh v18 data dir:
+# 3. Remove postgres and its v16 volume (the dump above is your recovery copy):
+./forge.sh remove postgres
+docker volume rm forge_postgres_data
+
+# 4. Deploy fresh v18 (compose already pinned to 18 + correct mount path):
 ./forge.sh add postgres
+./modules/postgres/healthcheck.sh          # must PASS before continuing
 
-# 4. Restore the dump into the new v18 instance:
-cat /tmp/pg16-dump.sql | docker exec -i forge_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-rm -f /tmp/pg16-dump.sql
+# 5. Restore the dump into v18:
+cat ~/pg16-dump.sql | docker exec -i forge_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 
-# 5. Verify (e.g. your databases are back):
-docker exec forge_postgres psql -U forge -c '\l'
+# 6. VERIFY the data is back BEFORE deleting the dump:
+docker exec forge_postgres psql -U forge -c '\l'   # your databases (incl. n8n) present?
+# Only once you've confirmed the restore:
+rm -f ~/pg16-dump.sql
 ```
 
+> [!WARNING]
+> Keep the dump (`~/pg16-dump.sql`) until step 6 confirms the restore. If v18
+> fails to start or the restore errors, that file is your only recovery copy —
+> deleting it early (together with the dropped volume) means data loss.
+
 Alternatively use `pg_upgrade` with both binaries, but for a homelab the
-dump/restore path above is simpler and reliable. **Always take a fresh backup
-first** (`scripts/backup.sh`).
+dump/restore path above is simpler and reliable.

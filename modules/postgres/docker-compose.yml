@@ -25,7 +25,11 @@ services:
       # Keep initdb deterministic across hosts.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # postgres:18+ stores data in a version-specific subdir and requires the
+      # volume mounted at /var/lib/postgresql (NOT /var/lib/postgresql/data as
+      # in 16 and earlier). Mounting the old path makes 18 refuse to start.
+      # See docker-library/postgres#1259.
+      - postgres_data:/var/lib/postgresql
       # First-boot database creation. Runs only when the data dir is empty.
       - ./initdb:/docker-entrypoint-initdb.d:ro
     networks:
