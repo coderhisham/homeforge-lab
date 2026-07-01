@@ -102,7 +102,60 @@ forge_services_in_layer() {
 # --- QuickStart defaults -----------------------------------------------------
 # Mirrors OpenClaw's QuickStart: sensible core, minimal questions. Core services
 # only (Caddy + Portainer). Access + everything else is opt-in.
+# forge_quickstart_defaults() { printf '%s\n' caddy portainer; }
 forge_quickstart_defaults() { printf '%s\n' caddy portainer; }
+
+# --- JSON serialization for the Go TUI ---------------------------------------
+# forge_registry_json -> emit the full catalog as a JSON object the external
+# selection TUI consumes on stdin. This keeps lib/deps.sh the SINGLE source of
+# truth: the Go TUI is a pure view over this data and never hard-codes services.
+#
+# Shape:
+#   {
+#     "layers":   [ {"key":"access","title":"Access"}, ... ],
+#     "services": [ {"name","layer","deps":[...],"ram_mb","disk_mb",
+#                    "watchtower":bool,"networks","desc","default":bool}, ... ]
+#   }
+#
+# Registry fields contain no double-quotes or backslashes, so escaping reduces
+# to a no-op here; awk still routes text through a json-string helper in case
+# the catalog gains punctuation later.
+forge_registry_json() {
+  local defaults; defaults=" $(forge_quickstart_defaults | tr '\n' ' ') "
+  {
+    # layers array (key + human title), preserving forge_layers order.
+    printf '{"layers":['
+    local first=1 layer
+    while IFS= read -r layer; do
+      [[ $first -eq 1 ]] || printf ','
+      first=0
+      printf '{"key":"%s","title":"%s"}' "$layer" "$(forge_layer_title "$layer")"
+    done < <(forge_layers)
+    printf '],"services":['
+
+    # services array, in registry order.
+    forge_registry | awk -F'|' -v defaults="$defaults" '
+      function jstr(s,   r) { gsub(/\\/,"\\\\",s); gsub(/"/,"\\\"",s); return "\"" s "\"" }
+      NF {
+        if (NR>1 && printed) printf ",";
+        printed=1
+        # deps array
+        deps=$3; depsjson="["
+        if (deps != "-" && deps != "") {
+          n=split(deps, d, /[ \t]+/)
+          for (i=1;i<=n;i++) { if(i>1) depsjson=depsjson","; depsjson=depsjson jstr(d[i]) }
+        }
+        depsjson=depsjson"]"
+        wt = ($6=="yes") ? "true" : "false"
+        # default-checked if the name is in the quickstart defaults list
+        def = (index(defaults, " " $1 " ") > 0) ? "true" : "false"
+        printf "{\"name\":%s,\"layer\":%s,\"deps\":%s,\"ram_mb\":%s,\"disk_mb\":%s,\"watchtower\":%s,\"networks\":%s,\"desc\":%s,\"default\":%s}",
+          jstr($1), jstr($2), depsjson, ($4+0), ($5+0), wt, jstr($7), jstr($8), def
+      }
+    '
+    printf ']}'
+  }
+}
 
 # Services pre-checked in the Advanced checklist (same core set).
 forge_default_checked() { forge_quickstart_defaults; }

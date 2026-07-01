@@ -21,6 +21,71 @@ FORGE_SELECTION=""   # result, set by tui_select_services
 # --- whiptail availability / sizing ------------------------------------------
 tui_has_whiptail() { command -v whiptail >/dev/null 2>&1; }
 
+# --- Go TUI (beautiful path) -------------------------------------------------
+# A committed, statically-linked Bubble Tea binary renders the selection UI.
+# It is a pure VIEW over the registry: forge.sh pipes forge_registry_json to it
+# on stdin, it draws to stderr, and prints the raw picks (space-separated) to
+# stdout. Bash remains authoritative — we re-resolve dependencies on the picks.
+#
+# tui_go_binary -> echoes the path to the right binary for this arch, or empty.
+tui_go_binary() {
+  local bindir="${FORGE_ROOT:-.}/bin" arch bin
+  case "$(uname -m)" in
+    x86_64|amd64)      arch="amd64" ;;
+    aarch64|arm64)     arch="arm64" ;;
+    *)                 return 0 ;;   # unsupported arch -> no binary
+  esac
+  bin="$bindir/forge-tui-linux-$arch"
+  # Only usable on Linux (these are ELF binaries) and if present + executable.
+  [[ "$(uname -s)" == "Linux" && -f "$bin" ]] || return 0
+  [[ -x "$bin" ]] || chmod +x "$bin" 2>/dev/null || true
+  echo "$bin"
+}
+
+# tui_select_via_go -> run the Go TUI; on success set FORGE_SELECTION (resolved
+# + ordered by Bash) and return 0. Return 2 if the binary is unavailable/failed
+# (caller falls back to whiptail), or 1 if the user cancelled in the UI.
+tui_select_via_go() {
+  local bin; bin="$(tui_go_binary)"
+  [[ -n "$bin" ]] || return 2
+
+  # Write the registry JSON to a temp file and pass its PATH as an argument.
+  # We must NOT pipe it on stdin: the Go TUI needs stdin attached to the
+  # terminal for Bubble Tea to read keystrokes.
+  local regfile; regfile="$(mktemp -t forge-registry.XXXXXX.json)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$regfile'" RETURN
+  forge_registry_json >"$regfile"
+
+  local picks rc
+  # UI draws to stderr (inherited TTY); picks come back on stdout.
+  picks="$("$bin" "$regfile")"; rc=$?
+
+  if [[ $rc -eq 1 ]]; then
+    log_info "Setup cancelled."
+    return 1
+  elif [[ $rc -ne 0 ]]; then
+    log_warn "Go selection UI unavailable (exit $rc); falling back to whiptail."
+    return 2
+  fi
+
+  picks="$(tr -s ' \n' ' ' <<<"$picks" | sed 's/^ *//;s/ *$//')"
+  if [[ -z "$picks" ]]; then
+    log_info "No services selected."
+    return 1
+  fi
+
+  # Bash is authoritative: re-resolve deps + order, independent of the UI.
+  local added
+  # shellcheck disable=SC2086
+  added="$(forge_added_deps $picks)"
+  [[ -n "${added// }" ]] && log_info "Auto-adding dependencies:$added"
+  # shellcheck disable=SC2086
+  FORGE_SELECTION="$(forge_install_order $picks)"
+  log_info "Selected: $FORGE_SELECTION"
+  return 0
+}
+
 # Backtitle shown on every screen (OpenClaw-style consistent framing).
 _TUI_BACKTITLE="homelab-forge — modular self-hosted stack installer"
 
@@ -191,14 +256,28 @@ tui_summary_and_confirm() {
 
 # --- Orchestration -----------------------------------------------------------
 # tui_select_services -> sets FORGE_SELECTION and returns 0 to proceed / 1 abort.
+# Prefers the beautiful Go TUI when a matching binary is present; otherwise uses
+# the whiptail flow (fork -> checklist -> summary). Both feed the SAME
+# authoritative Bash dependency resolution.
 tui_select_services() {
-  if ! tui_has_whiptail; then
-    log_error "whiptail not found. On Ubuntu: sudo apt-get install -y whiptail"
-    log_error "Or use the non-interactive path: ./forge.sh install --with a,b,c"
-    return 1
-  fi
   if [[ ! -t 0 || ! -t 1 ]]; then
     log_error "No TTY for the interactive menu. Use --with or --config instead."
+    return 1
+  fi
+
+  # 1) Preferred: committed Go (Bubble Tea) selection UI.
+  local rc
+  tui_select_via_go; rc=$?
+  case $rc in
+    0) return 0 ;;   # user proceeded; FORGE_SELECTION populated
+    1) return 1 ;;   # user cancelled in the UI
+    *) : ;;          # 2 = unavailable/failed -> fall through to whiptail
+  esac
+
+  # 2) Fallback: whiptail (preinstalled on Ubuntu; zero bootstrap).
+  if ! tui_has_whiptail; then
+    log_error "No selection UI available: Go TUI binary missing and whiptail not found."
+    log_error "Install whiptail (sudo apt-get install -y whiptail) or use --with a,b,c."
     return 1
   fi
 
