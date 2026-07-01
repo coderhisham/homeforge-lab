@@ -1,0 +1,54 @@
+# modules/minio/docker-compose.yml
+# MinIO for homelab-forge — S3-compatible object storage.
+#
+# Networking: BOTH networks. forge_internal so in-cluster services can use it as
+# an S3 endpoint (http://minio:9000) with no public exposure; forge_public so
+# Caddy can front the web console at a *.ts.net name. No ports are published
+# directly — access is via Caddy (tailnet-only) or the internal network.
+#
+# Stateful: NO watchtower label — object data must not be risked by auto-update.
+#
+# ⚠ VERIFY ON VM (two things I could not confirm without the box):
+#   1. Image tag: MinIO uses date-stamped RELEASE tags. The tag below is pinned
+#      from training knowledge; if `pull` fails, bump it to a current release
+#      (https://hub.docker.com/r/minio/minio/tags). Failure is loud, not silent.
+#   2. Healthcheck: uses `mc ready local` — MinIO's documented healthcheck; `mc`
+#      ships in the server image. If your image lacks it, forge's liveness
+#      fallback (running+stable) still verifies the container, and
+#      healthcheck.sh probes the HTTP health endpoint from the host.
+
+services:
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: forge_minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set (see .env)}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set (see .env)}"
+      # Tell MinIO its browser-facing URL so console redirects work behind Caddy.
+      MINIO_BROWSER_REDIRECT_URL: "${MINIO_CONSOLE_URL:-}"
+    volumes:
+      - minio_data:/data
+    networks:
+      - forge_internal
+      - forge_public
+    healthcheck:
+      # MinIO's documented healthcheck. See the VERIFY note above.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  minio_data:
+    name: forge_minio_data
+
+networks:
+  forge_internal:
+    external: true
+    name: forge_internal
+  forge_public:
+    external: true
+    name: forge_public
