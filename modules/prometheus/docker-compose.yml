@@ -1,0 +1,73 @@
+# modules/prometheus/docker-compose.yml
+# Prometheus + node-exporter + cAdvisor for homelab-forge — metrics collection.
+#
+# What actually gets scraped (honest scope): most stack images (Postgres, Redis,
+# …) don't expose Prometheus metrics without a dedicated exporter sidecar, so
+# "auto-discover every service's exporter" would scrape nothing for them. This
+# module instead delivers real, immediate box-wide observability:
+#   - node-exporter : host metrics (CPU, memory, disk, network)
+#   - cAdvisor      : per-container metrics (CPU/mem/net/fs for EVERY container)
+#   - prometheus    : scrapes itself + the two exporters, and is pre-wired to
+#                     pick up any per-service exporter you add (see prometheus.yml).
+#
+# Networking: forge_internal (Grafana reads it privately). Not Caddy-fronted by
+# default — expose it via a Caddy block only if you want the Prometheus UI.
+#
+# Stateful (TSDB grows): NO watchtower label — update deliberately.
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: forge_prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=${PROM_RETENTION:-15d}"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - forge_internal
+    # No in-container healthcheck: rather than assume a specific tool exists in
+    # the prom/prometheus image (the Phase-1 lesson), forge's liveness fallback
+    # verifies the container is running+stable, and modules/prometheus/
+    # healthcheck.sh does a real /-/healthy probe from a curl container.
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    container_name: forge_node_exporter
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - forge_internal
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: forge_cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - forge_internal
+
+volumes:
+  prometheus_data:
+    name: forge_prometheus_data
+
+networks:
+  forge_internal:
+    external: true
+    name: forge_internal

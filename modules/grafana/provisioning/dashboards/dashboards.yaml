@@ -1,0 +1,17 @@
+# modules/grafana/provisioning/dashboards/dashboards.yaml
+# Auto-provisioned dashboard provider — loads every dashboard JSON from the
+# mounted /var/lib/grafana/dashboards directory at startup.
+
+apiVersion: 1
+
+providers:
+  - name: homelab-forge
+    orgId: 1
+    folder: homelab-forge
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,52 @@
+# modules/grafana/docker-compose.yml
+# Grafana for homelab-forge — dashboards over Prometheus (metrics) + Loki (logs).
+#
+# Auto-provisioning: datasources and a starter dashboard are wired at startup
+# from the mounted provisioning/ tree — no click-through setup. Prometheus and
+# Loki are added as datasources automatically; a "Homelab Overview" dashboard
+# is imported.
+#
+# Networking: BOTH networks. forge_internal to read prometheus:9090 + loki:3100
+# privately; forge_public so Caddy fronts the UI at a *.ts.net name. No ports
+# published directly.
+#
+# Update: watchtower opt-in (config/dashboards are provisioned from files; only
+# the sqlite of users/prefs lives in the volume).
+
+services:
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: forge_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set (see .env)}"
+      # Behind Caddy: set GF_SERVER_ROOT_URL to the public *.ts.net name so
+      # links/redirects are correct. Empty is fine for internal access.
+      GF_SERVER_ROOT_URL: "${GRAFANA_ROOT_URL:-}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - forge_internal
+      - forge_public
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    # No in-container healthcheck: the grafana image doesn't reliably ship
+    # curl/wget. forge's liveness fallback + healthcheck.sh (which probes
+    # /api/health from a curl container) verify it.
+
+volumes:
+  grafana_data:
+    name: forge_grafana_data
+
+networks:
+  forge_internal:
+    external: true
+    name: forge_internal
+  forge_public:
+    external: true
+    name: forge_public

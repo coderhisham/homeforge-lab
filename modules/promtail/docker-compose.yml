@@ -1,0 +1,39 @@
+# modules/promtail/docker-compose.yml
+# Promtail for homelab-forge — ships ALL container logs to Loki, no per-service
+# config. It uses Docker service discovery (via the Docker socket) to find every
+# running container automatically and tails their logs.
+#
+# Networking: forge_internal — pushes to loki:3100 privately. No published ports.
+#
+# Access: mounts the Docker socket (read-only) for discovery + the Docker
+# container-log directory (read-only) to read the JSON log files. Socket access
+# is powerful; it's read-only and Promtail only lists/reads, but note it.
+#
+# Stateless (just a shipper; only a positions file persists): watchtower opt-in.
+
+services:
+  promtail:
+    image: grafana/promtail:3.4.1
+    container_name: forge_promtail
+    restart: unless-stopped
+    command: ["-config.file=/etc/promtail/promtail-config.yaml"]
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro      # container discovery
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro  # log files
+      - promtail_data:/tmp                                 # positions file
+    networks:
+      - forge_internal
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    # No in-container healthcheck (distroless image); healthcheck.sh probes
+    # /ready from a curl container.
+
+volumes:
+  promtail_data:
+    name: forge_promtail_data
+
+networks:
+  forge_internal:
+    external: true
+    name: forge_internal

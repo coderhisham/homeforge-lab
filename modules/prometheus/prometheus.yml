@@ -1,0 +1,58 @@
+# modules/prometheus/prometheus.yml — homelab-forge scrape config.
+#
+# Active targets give real box-wide observability out of the box. Commented
+# blocks are ready-to-enable stubs for per-service exporters you add later.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: homelab-forge
+
+scrape_configs:
+  # Prometheus itself.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Host metrics (CPU, mem, disk, net) via node-exporter.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Per-container metrics (CPU/mem/net/fs for every container) via cAdvisor.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # Caddy CAN export Prometheus metrics, but our Caddy admin endpoint is bound
+  # to 127.0.0.1:2019 (loopback-only, to fix an IPv6 healthcheck issue), so it
+  # is NOT reachable from Prometheus over the network. To scrape Caddy, expose
+  # its metrics on a network address first (add `metrics` to a site block on a
+  # dedicated port, or bind admin to 0.0.0.0 on forge_internal), then enable:
+  # - job_name: caddy
+  #   metrics_path: /metrics
+  #   static_configs:
+  #     - targets: ["forge_caddy:2019"]
+
+  # --- Per-service exporter stubs (enable when you add the exporter) ---
+  # Postgres: run a postgres_exporter sidecar, then:
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
+  #
+  # Redis: run a redis_exporter sidecar, then:
+  # - job_name: redis
+  #   static_configs:
+  #     - targets: ["redis-exporter:9121"]
+
+  # --- Optional: Docker service discovery (auto-find containers) ---
+  # Discovers all running containers and scrapes those that expose metrics.
+  # Requires the Docker socket mounted into Prometheus (add it in compose).
+  # - job_name: docker-sd
+  #   docker_sd_configs:
+  #     - host: unix:///var/run/docker.sock
+  #   relabel_configs:
+  #     - source_labels: [__meta_docker_container_label_prometheus_scrape]
+  #       regex: "true"
+  #       action: keep

@@ -1,0 +1,38 @@
+# modules/promtail/promtail-config.yaml — ship ALL container logs to Loki.
+#
+# Uses docker_sd (Docker service discovery) so every running container is picked
+# up automatically — no per-service entries. Relabeling turns Docker metadata
+# into useful Loki labels (container name, compose project/service, stream).
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      # Container name (strip the leading slash Docker adds).
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: container
+      # Compose project + service, when present (all forge_* containers have these).
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
+        target_label: compose_project
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: compose_service
+      # Log stream (stdout/stderr).
+      - source_labels: ["__meta_docker_container_log_stream"]
+        target_label: stream
+      # A stable job label so everything is queryable under {job="containers"}.
+      - target_label: job
+        replacement: containers
