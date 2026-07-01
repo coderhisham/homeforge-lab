@@ -23,3 +23,6 @@ sshd_config.bak.*
 .DS_Store
 *.swp
 *~
+
+# Local tooling / editor config (machine-specific)
+.claude/
