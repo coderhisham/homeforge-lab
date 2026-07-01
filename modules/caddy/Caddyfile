@@ -10,8 +10,11 @@
 
 {
 	# Global options.
-	# admin endpoint is used by the container healthcheck (localhost:2019).
-	admin localhost:2019
+	# Admin API bound to explicit IPv4. Do NOT use "localhost" here: inside the
+	# container busybox wget resolves localhost to ::1 (IPv6) first, but the
+	# admin endpoint isn't on ::1, so the healthcheck gets "connection refused".
+	# Pinning 127.0.0.1 makes the bind and the healthcheck match on every box.
+	admin 127.0.0.1:2019
 	# Uncomment for verbose TLS/issuance debugging:
 	# debug
 }

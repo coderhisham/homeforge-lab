@@ -53,7 +53,7 @@ curl -sS https://<your-host>.<tailnet>.ts.net/healthz    # -> ok
 |---|---|
 | TLS cert never issues | MagicDNS or HTTPS Certificates not enabled in the tailnet admin; or Tailscale not up. Enable both, confirm `tailscale status`, restart Caddy. |
 | `tailscaled.sock` not found | The socket path differs or Tailscale isn't installed on the host. Confirm `/var/run/tailscale/tailscaled.sock` exists; restart Caddy after Tailscale is up. |
-| Healthcheck fails but site loads | The image may lack `wget`. Swap the healthcheck to `curl` or the caddy admin binary — see the compose file comment. |
+| Healthcheck fails but site loads | Almost always the `localhost`→IPv6 (`::1`) trap: busybox `wget` tries `::1` first but the admin API is on `127.0.0.1`. The healthcheck + Caddyfile both pin `127.0.0.1:2019` to avoid this. If you changed either, keep them on explicit IPv4. |
 | 404 for a service subdomain | That service's `conf.d/*.caddy` block isn't present yet, or Caddy wasn't reloaded. Re-run its module. |
 | Port 80/443 already in use | Another web server is bound. Stop it, or remap Caddy's published ports. |
 
