@@ -1,12 +1,28 @@
+<div align="center">
+
 # tuninforge
 
-A CLI-driven installer that stands up a production-grade, modular, self-hosted
-developer infrastructure stack on a fresh Ubuntu LTS server. Clone, run one
-command, pick your services from a menu, and get a Tailscale-fronted stack with
-automatic TLS, encrypted backups, and observability — **nothing exposed to the
-public internet.**
+**One command turns a fresh Ubuntu server into a private, production-grade, self-hosted stack.**
 
-New here? Jump to **[Getting Started](#getting-started)** for a step-by-step walkthrough.
+Pick your services from a menu — get Tailscale-fronted access, automatic TLS, encrypted backups, and full observability, with **nothing exposed to the public internet.**
+
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![Shell](https://img.shields.io/badge/built_with-Bash-4EAA25?logo=gnubash&logoColor=white)](#)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Issues](https://img.shields.io/github/issues/coderhisham/tuninforge)](https://github.com/coderhisham/tuninforge/issues)
+[![Stars](https://img.shields.io/github/stars/coderhisham/tuninforge?style=social)](https://github.com/coderhisham/tuninforge/stargazers)
+
+[Getting Started](#getting-started) · [Services](#what-you-get) · [Architecture](#architecture) · [Contributing](#contributing) · [Community](#community-and-support)
+
+</div>
+
+---
+
+tuninforge is an **open-source, community-driven** homelab bootstrapper. It's
+deliberately modular: every service is a self-contained folder, the whole
+catalog is one registry file, and adding a new service is a single pull request.
+If you can write a `docker-compose.yml`, you can extend it — see
+**[Contributing](#contributing)**.
 
 ## What you get
 
@@ -20,143 +36,81 @@ New here? Jump to **[Getting Started](#getting-started)** for a step-by-step wal
 | **Observability** | Prometheus + node-exporter + cAdvisor, Loki, Alloy, Grafana |
 | **Backup** | Restic (encrypted, local + remote repos) |
 
-Every service is individually selectable. Core (Caddy + Portainer) is
-pre-selected; heavy services (MinIO, Qdrant, Ollama) are opt-in.
-
----
+Every service is **individually selectable**. Core (Caddy + Portainer) is
+pre-selected; heavy services (MinIO, Qdrant, Ollama) are opt-in. Dependencies
+resolve automatically — pick n8n and it pulls in Postgres + Redis.
 
 ## Getting Started
 
-This walkthrough takes you from a bare server to a running, private stack.
-**Budget ~20 minutes.** No prior experience with these tools is assumed.
+From a bare server to a running private stack in ~20 minutes. No prior
+experience with these tools assumed.
 
-### Step 0 — What you need first
+### Prerequisites
 
-1. **A fresh Ubuntu LTS server** (24.04 or 22.04). A cheap VPS, a spare box, or
-   a VM all work. You need a user with `sudo`.
-2. **A Tailscale account** — [free tier](https://tailscale.com) is plenty. This
-   is how you'll reach your services privately, with no open ports. Sign up now;
-   you'll authenticate the server in Step 2.
-3. **An SSH key** already working to log into the server (i.e. you can
-   `ssh you@server` without typing a password). If not, run `ssh-copy-id
-   you@server` from your laptop first — the SSH-hardening step depends on it.
+1. **A fresh Ubuntu LTS server** (24.04 or 22.04) with a `sudo` user. A VPS, a
+   spare box, or a VM all work.
+2. **A [Tailscale](https://tailscale.com) account** (free tier is plenty) —
+   how you'll reach services privately, with no open ports.
+3. **A working SSH key login** to the server (`ssh you@server` with no password
+   prompt). If not yet: `ssh-copy-id you@server` from your laptop first.
 
 > [!WARNING]
-> **Try this on a disposable/snapshot VM the first time.** The access layer
+> **Try it on a disposable/snapshot VM the first time.** The access layer
 > changes SSH and firewall settings; a mistake on a box you can't console into
-> could lock you out. Snapshot first, or use a throwaway VM to learn the flow.
+> could lock you out. Snapshot first, or learn the flow on a throwaway VM.
 
-### Step 1 — Enable Tailscale HTTPS (one-time, in the browser)
+### 1. Enable Tailscale HTTPS (one-time, in the browser)
 
-So Caddy can get real TLS certificates for your services, enable two things in
-the [Tailscale admin console](https://login.tailscale.com/admin/dns) → **DNS**:
+In the [Tailscale admin console](https://login.tailscale.com/admin/dns) → **DNS**,
+turn on **MagicDNS** and click **Enable HTTPS**. This lets Caddy issue real TLS
+certs for your `*.ts.net` names.
 
-- **MagicDNS** — toggle on.
-- **HTTPS Certificates** — click "Enable HTTPS".
-
-(You only do this once per tailnet. Skip it and services still run, but without
-HTTPS certs.)
-
-### Step 2 — Clone and run the installer
-
-On the server:
+### 2. Clone and run
 
 ```bash
-git clone https://github.com/coderhisham/tuninforge.git tuninforge
+git clone https://github.com/coderhisham/tuninforge.git
 cd tuninforge
 ./tuninforge.sh install
 ```
 
-You'll get an interactive menu:
-
-1. **Setup mode** — pick **QuickStart** (installs the sensible core: Caddy +
-   Portainer) or **Advanced** (choose every service, grouped by layer).
-2. If Advanced, **check the services you want** with `space`, `enter` to
-   continue. Dependencies are added automatically (pick n8n and it pulls in
-   Postgres + Redis, telling you why).
-3. **Review screen** — shows exactly what will install and an estimated
-   RAM/disk footprint. Nothing has touched your system yet. Confirm to proceed.
-
-The installer then, in order: sets up the access layer (Tailscale + optional SSH
-hardening), installs Docker if missing, creates the networks, generates secrets,
-and brings up each service — waiting for each to report healthy.
+You get an interactive menu: choose **QuickStart** (sensible core) or
+**Advanced** (pick every service). It shows exactly what will install and an
+estimated RAM/disk footprint, and asks before touching anything.
 
 > [!IMPORTANT]
-> When the installer generates secrets, it prints them **once**, in a red box.
-> Save them to a password manager right then — they're stored only in
-> git-ignored `.env` files and are never shown again. See
-> [Configuration and secrets](#configuration-and-secrets) below.
+> Generated secrets are printed **once**, in a red box. Save them to a password
+> manager immediately — they live only in git-ignored `.env` files and are never
+> shown again. See [Configuration and secrets](#configuration-and-secrets).
 
-### Step 3 — Reach your services
-
-Services aren't exposed on public ports — you reach them over your tailnet.
-After install:
+### 3. Reach your services
 
 ```bash
-tailscale status          # confirms your server is on the tailnet
-tailscale ip -4           # your server's 100.x.y.z address
-./tuninforge.sh status         # what's installed + each service's health
+./tuninforge.sh status     # what's installed + each service's health
+tailscale ip -4            # your server's private address
 ```
 
-From any device signed into your tailnet, browse to your server's MagicDNS name
-(e.g. `https://your-host.your-tailnet.ts.net`). Caddy serves it with a valid
-certificate. As you add web services, they appear at subdomains Caddy fronts.
-
-**That's it — you have a private, self-hosted stack.** Add more anytime with
+From any device on your tailnet, browse to your server's MagicDNS name
+(`https://your-host.your-tailnet.ts.net`). Add more anytime:
 `./tuninforge.sh add <service>`.
 
----
-
-## Configuration and secrets
-
-You do **not** need to hand-edit anything to get started — the installer
-generates everything. This section is for when you want to customize.
-
-### Per-service `.env` files (auto-generated)
-
-Each service has `modules/<service>/.env.example` (committed, safe defaults) and,
-after install, a `modules/<service>/.env` (generated, **git-ignored**, `chmod
-600`). Secrets are created automatically: an entry like
-
-```ini
-POSTGRES_PASSWORD=__GEN:alnum:40__      # in .env.example
-```
-
-becomes a strong random value in the real `.env` on first install, shown once.
-**Re-running the installer never rotates an existing secret** — your credentials
-are stable. To change one, edit the service's `.env` and re-deploy it
-(`./tuninforge.sh add <service>`).
-
-Some values you may want to set yourself (all optional):
-
-| Where | Key | What it does |
-|---|---|---|
-| `modules/caddy/.env` | `TUNINFORGE_TS_HOSTNAME` | Your `*.ts.net` name (auto-detected from Tailscale; override if needed). |
-| `modules/grafana/.env` | `GRAFANA_ROOT_URL` | Public Grafana URL behind Caddy, for correct links. |
-| `modules/postgres/.env` | `POSTGRES_MULTIPLE_DATABASES` | Comma-separated extra DBs to create on first boot. |
-| `modules/litellm/.env` | `OPENAI_API_KEY`, `GEMINI_API_KEY` | External provider keys (only if you use them in `config.yaml`). |
-
-### `tuninforge.config.yaml` (optional, for repeatable installs)
-
-For a non-interactive or reproducible setup, copy the example and edit it:
+## Commands
 
 ```bash
-cp tuninforge.config.example.yaml tuninforge.config.yaml   # git-ignored
-# edit: which services, Tailscale auth key, SSH mode, backup repo, etc.
-./tuninforge.sh install --config tuninforge.config.yaml
+./tuninforge.sh install [--with a,b,c] [--config FILE] [--dry-run] [--yes]
+./tuninforge.sh add <service>...                  # add to a running stack
+./tuninforge.sh remove <service>... [--dry-run] [--purge-volumes]
+./tuninforge.sh status                            # installed vs available + health
+./tuninforge.sh --help
 ```
 
-Or skip the file entirely and just name services:
+Every command supports `--dry-run` — it prints exactly what it *would* do and
+changes nothing. Backup / restore:
 
 ```bash
-./tuninforge.sh install --with caddy,portainer,postgres,redis
+sudo ./scripts/backup.sh                    # encrypted; local repo by default
+sudo ./scripts/restore.sh [--list|<id>]     # destructive; typed confirmation
+sudo ./scripts/uninstall.sh [--purge-volumes]
 ```
-
-> [!CAUTION]
-> `tuninforge.config.yaml` can hold a Tailscale auth key and other secrets — it's
-> git-ignored for that reason. Never commit it. `.env` files are ignored too.
-
----
 
 ## Architecture
 
@@ -203,87 +157,93 @@ flowchart TB
 ```
 
 Two Docker networks: **`tuninforge_public`** for Caddy-fronted services, and an
-internal **`tuninforge_internal`** (no gateway/outbound) that isolates the data layer
-so it's reachable only by services that need it. No service publishes ports to
-the host — everything is reached through Caddy over your tailnet.
+internal **`tuninforge_internal`** (no gateway/outbound) that isolates the data
+layer. No service publishes ports to the host — everything is reached through
+Caddy over your tailnet.
 
-## Command reference
+## Configuration and secrets
 
-```bash
-./tuninforge.sh install [--with a,b,c] [--config FILE] [--dry-run] [--yes]
-./tuninforge.sh add <service>...                     # add to a running stack
-./tuninforge.sh remove <service>... [--dry-run] [--purge-volumes]
-./tuninforge.sh status                               # installed vs available + health
-./tuninforge.sh --help
-```
+You don't need to hand-edit anything to get started — the installer generates
+everything. Each service has `modules/<service>/.env.example` (committed, safe
+defaults) and a generated, git-ignored `modules/<service>/.env` (mode `600`).
+Secret placeholders like `POSTGRES_PASSWORD=__GEN:alnum:40__` become strong
+random values on first install, shown once. **Re-running never rotates an
+existing secret.**
 
-Every command supports `--dry-run` — it prints exactly what it *would* do and
-changes nothing. Use it freely to preview.
-
-Backup / restore:
-
-```bash
-sudo ./scripts/backup.sh                    # encrypted; local repo by default
-sudo ./scripts/restore.sh [--list|<id>]     # destructive; typed confirmation
-sudo ./scripts/uninstall.sh [--purge-volumes]   # tear down the stack (keeps access layer)
-```
-
-See [docs/backup.md](docs/backup.md) for redirecting backups to S3/Backblaze/SFTP.
+For repeatable/non-interactive installs, copy `tuninforge.config.example.yaml`
+to `tuninforge.config.yaml` (git-ignored) and pass `--config`, or just use
+`--with a,b,c`.
 
 ## Design principles
 
-- **Safety first.** Nothing touches the system without a confirmation gate. The
-  access layer installs first so the box is reachable before anything else. SSH
-  hardening is lockout-safe: it verifies key login works, writes to a drop-in
-  that wins over cloud-init defaults, validates the *effective* config with
-  `sshd -T`, reloads (never restarts), and makes you confirm a fresh session
-  before it's done — with a printed rollback if it isn't.
-- **Private by default.** Services are reached over Tailscale; Caddy gets real
-  TLS certs for your `*.ts.net` MagicDNS name with no open ports and no public
-  domain.
-- **Idempotent.** Running the installer twice never breaks an existing setup;
-  secrets are never rotated on re-run.
-- **Modular.** Each service is a self-contained `modules/<service>/` directory.
-  A single registry (`lib/deps.sh`) drives selection, dependencies, install
-  order, status, and teardown.
-- **Secrets stay secret.** Strong secrets auto-generate into git-ignored `.env`
-  files (0600) and print to your terminal exactly once.
+- **Safety first.** Nothing touches the system without a confirmation gate. SSH
+  hardening is lockout-safe: it verifies key login, writes a drop-in that wins
+  over cloud-init defaults, validates the *effective* config with `sshd -T`,
+  reloads (never restarts), and makes you confirm a fresh session — with a
+  printed rollback if it isn't.
+- **Private by default.** Reached over Tailscale; Caddy gets real TLS certs for
+  your `*.ts.net` name with no open ports and no public domain.
+- **Idempotent.** Running the installer twice never breaks an existing setup.
+- **Modular & registry-driven.** One `lib/deps.sh` registry powers selection,
+  dependencies, install order, status, and teardown — so a new service is one
+  row + a folder.
 - **Stateful data is protected.** Watchtower auto-updates only labeled,
-  stateless services; databases and stores are pinned for manual, backed-up
-  updates.
+  stateless services; databases are pinned for manual, backed-up updates.
 
-## Per-service documentation
+## Contributing
 
-Every service has a doc covering what it does, how to verify it, common failure
-modes, and backup/restore — see [docs/](docs/). Start with
-[tailscale](docs/tailscale.md) and [ssh-hardening](docs/ssh-hardening.md) (the
-access layer), then [caddy](docs/caddy.md), [postgres](docs/postgres.md),
-[n8n](docs/n8n.md), [grafana](docs/grafana.md), and [backup](docs/backup.md).
+**tuninforge is built to be extended by the community — contributions are the
+whole point.** Adding a service is deliberately small: one registry row in
+`lib/deps.sh` plus a `modules/<name>/` folder with a `docker-compose.yml`,
+`.env.example`, and `healthcheck.sh`.
 
-> **Upgrading PostgreSQL across major versions** (e.g. 16 → 18) requires a
-> dump/restore migration — it won't boot on an old data directory. Steps are in
-> [docs/postgres.md](docs/postgres.md).
+Good first contributions:
+
+- **Add a service** you self-host (a new database, app, or exporter).
+- **Improve a module** — pin a better image, tighten a healthcheck, add GPU support.
+- **Docs** — clarify a setup step, fix a failure-mode table, improve this README.
+- **Report or fix bugs** you hit on your own hardware.
+
+Start with **[CONTRIBUTING.md](CONTRIBUTING.md)** — it has the full module
+convention, coding standards, and a pre-PR checklist. Then:
+
+1. Fork the repo and create a branch.
+2. Build your change; test it on a disposable VM (`--dry-run` first).
+3. Open a PR describing what you tested and on what.
+
+New contributors are welcome regardless of experience level — if something is
+unclear, open an issue and ask.
+
+## Community and support
+
+- **[Discussions](https://github.com/coderhisham/tuninforge/discussions)** —
+  questions, ideas, show-and-tell, help with your setup.
+- **[Issues](https://github.com/coderhisham/tuninforge/issues)** — bugs and
+  feature requests.
+- **[Per-service docs](docs/)** — every service has a page covering what it
+  does, how to verify it, common failure modes, and backup/restore.
+
+## Roadmap
+
+Tracked in [Issues](https://github.com/coderhisham/tuninforge/issues) and
+[Discussions](https://github.com/coderhisham/tuninforge/discussions). Community
+priorities welcome — some directions:
+
+- More selectable services (community-contributed modules).
+- A maintained S3 engine to succeed MinIO CE (see [docs/minio.md](docs/minio.md)).
+- Optional public-domain TLS path alongside the Tailscale default.
+- Per-service Prometheus exporters wired into the observability layer.
 
 ## Requirements
 
 - A fresh **Ubuntu LTS** server (22.04 / 24.04) with a `sudo` user.
-- A [Tailscale](https://tailscale.com) account (free tier is fine), with
-  MagicDNS + HTTPS certificates enabled (Step 1 above).
-- A working SSH key login to the server (needed before SSH hardening).
-- Docker is installed automatically if absent.
+- A [Tailscale](https://tailscale.com) account with MagicDNS + HTTPS enabled.
+- A working SSH key login (before SSH hardening). Docker is auto-installed.
 
-## Troubleshooting
+## License
 
-| Symptom | Fix |
-|---|---|
-| A service shows unhealthy right after install | Give it a moment — some take 30–60s to start; `./tuninforge.sh status` re-checks. Then `./modules/<svc>/healthcheck.sh`. |
-| `image ... not found` on pull | A pinned tag is stale for your arch; check the `image:` line in that module's `docker-compose.yml`. |
-| Can't reach a service in the browser | Confirm `tailscale status` is up on both server and client, and that MagicDNS + HTTPS are enabled (Step 1). |
-| SSH hardening won't proceed | You need a working key login first: `ssh-copy-id you@server`, verify passwordless login, then re-run. |
-| Deep-dive a service | Each has a doc in [docs/](docs/) with its own failure modes. |
+[AGPL-3.0](LICENSE). By contributing, you agree your work is licensed under it.
 
-## License & contributing
-
-[AGPL-3.0](LICENSE). Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md)
-for the module convention (adding a service is one registry row + a
-`modules/<name>/` directory).
+<div align="center">
+<sub>Built for the self-hosting community. Star it if it's useful, and send a PR to make it better.</sub>
+</div>
