@@ -30,16 +30,20 @@ _tui_cols()  { echo "${COLUMNS:-80}"; }
 
 # --- The QuickStart vs Advanced fork (mirrors `openclaw onboard`) ------------
 # Returns via stdout: "quickstart" or "advanced". Aborts (rc 1) on cancel.
+#
+# Uses --menu, NOT --radiolist: for a pick-exactly-one choice, a menu returns
+# the highlighted row on ENTER directly. A radiolist requires SPACE to move the
+# radio button first — arrow+ENTER leaves it on the default, so selecting the
+# second option appears to do nothing. --menu removes that footgun entirely.
 tui_choose_mode() {
   local choice
   choice="$(whiptail --backtitle "$_TUI_BACKTITLE" \
     --title "Setup mode" \
-    --notags \
-    --radiolist \
-    "How do you want to set up homelab-forge?\n\nUse ↑/↓ to move, SPACE to select, ENTER to confirm." \
+    --menu \
+    "How do you want to set up homelab-forge?\n\nUse ↑/↓ to move, ENTER to confirm." \
     15 74 2 \
-    "quickstart" "QuickStart — recommended defaults (Caddy + Portainer)" ON \
-    "advanced"   "Advanced — choose every service, grouped by layer"      OFF \
+    "quickstart" "Recommended defaults (Caddy + Portainer)" \
+    "advanced"   "Choose every service, grouped by layer" \
     3>&1 1>&2 2>&3)" || return 1
   echo "$choice"
 }
