@@ -1,4 +1,4 @@
-module github.com/coderhisham/homeforge-lab/tui
+module github.com/coderhisham/tuninforge/tui
 
 go 1.26.4
 

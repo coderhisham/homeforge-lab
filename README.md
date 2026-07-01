@@ -62,7 +62,7 @@ HTTPS certs.)
 On the server:
 
 ```bash
-git clone https://github.com/coderhisham/homeforge-lab.git tuninforge
+git clone https://github.com/coderhisham/tuninforge.git tuninforge
 cd tuninforge
 ./tuninforge.sh install
 ```
